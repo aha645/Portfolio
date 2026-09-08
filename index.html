@@ -5,61 +5,98 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>포트폴리오</title>
   <link rel="stylesheet" href="css/style.css" />
+  <!--
+    script를 head에서 defer로 불러오는 이유:
+    - defer는 HTML 파싱을 막지 않고, 파싱이 끝난 뒤(DOM이 준비된 뒤) 실행되므로
+      body 끝에 <script>를 두는 것과 실행 시점은 비슷하지만
+      "다운로드는 파싱과 동시에, 실행은 파싱 후"라 body 하단에 두는 것보다 효율적이다.
+    - 과제 요구사항: "JavaScript 파일을 defer 속성으로 연결한다."
+  -->
+  <script src="js/script.js" defer></script>
 </head>
 <body>
-  <!-- 헤더 + 네비게이션 -->
-  <header>
+  <!-- 헤더 + 네비게이션 (Flexbox: 로고 왼쪽 / 메뉴+토글 오른쪽) -->
+  <header id="site-header">
     <nav>
-      <ul>
-        <li><a href="#hero">홈</a></li>
-        <li><a href="#about">소개</a></li>
-        <li><a href="#skills">기술</a></li>
-        <li><a href="#projects">프로젝트</a></li>
-        <li><a href="#contact">문의</a></li>
+      <a href="#hero" class="logo">MyPortfolio</a>
+
+      <!-- 다크모드 토글 버튼: 클릭 시 JS에서 data-theme 속성을 바꾼다 -->
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="다크 모드 전환">🌙</button>
+
+      <!-- 햄버거 버튼: 모바일(768px 미만)에서만 보임. onclick 속성 대신 addEventListener 사용 -->
+      <button id="hamburger" class="hamburger" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav-menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <ul id="nav-menu">
+        <li><a href="#hero" class="nav-link">홈</a></li>
+        <li><a href="#about" class="nav-link">소개</a></li>
+        <li><a href="#skills" class="nav-link">기술</a></li>
+        <li><a href="#projects" class="nav-link">프로젝트</a></li>
+        <li><a href="#contact" class="nav-link">문의</a></li>
       </ul>
     </nav>
   </header>
 
   <main>
     <!-- Hero 섹션 -->
-    <section id="hero">
+    <section id="hero" class="reveal">
       <h1 id="hero-greeting"></h1>
-      <a id="hero-cta" href="#">버튼</a>
+      <a id="hero-cta" href="#projects">버튼</a>
     </section>
 
     <!-- About 섹션 -->
-    <section id="about">
+    <section id="about" class="reveal">
       <h2>소개</h2>
       <img id="about-img" src="" alt="" />
       <p id="about-text"></p>
     </section>
 
     <!-- Skills 섹션 -->
-    <section id="skills">
+    <section id="skills" class="reveal">
       <h2>기술 스택</h2>
       <ul id="skills-list"></ul>
     </section>
 
     <!-- Projects 섹션 (GitHub API) -->
-    <section id="projects">
+    <section id="projects" class="reveal">
       <h2>프로젝트</h2>
-      <div id="projects-list"></div>
+      <!--
+        로딩 / 에러 / 빈 상태 메시지를 담는 별도 영역.
+        aria-live="polite"로 스크린리더에도 상태 변화가 안내되게 한다.
+      -->
+      <div id="projects-status" class="status-msg" aria-live="polite"></div>
+      <div id="projects-list" class="projects-grid"></div>
     </section>
 
     <!-- Contact 섹션 -->
-    <section id="contact">
+    <section id="contact" class="reveal">
       <h2>문의하기</h2>
-      <form>
-        <label for="name">이름</label>
-        <input type="text" id="name" name="name" />
+      <!--
+        novalidate: 브라우저 기본 유효성 검사 팝업 대신
+        JS로 직접 검증하고 에러 메시지를 필드 근처에 표시하기 위함.
+      -->
+      <form id="contact-form" novalidate>
+        <div class="form-group">
+          <label for="name">이름</label>
+          <input type="text" id="name" name="name" />
+          <span class="error-message" id="name-error"></span>
+        </div>
 
-        <label for="email">이메일</label>
-        <input type="email" id="email" name="email" />
+        <div class="form-group">
+          <label for="email">이메일</label>
+          <input type="email" id="email" name="email" />
+          <span class="error-message" id="email-error"></span>
+        </div>
 
-        <label for="message">메시지</label>
-        <textarea id="message" name="message"></textarea>
+        <div class="form-group">
+          <label for="message">메시지</label>
+          <textarea id="message" name="message"></textarea>
+          <span class="error-message" id="message-error"></span>
+        </div>
 
         <button type="submit">보내기</button>
+        <p id="form-success" class="success-message" role="status"></p>
       </form>
     </section>
   </main>
@@ -70,6 +107,7 @@
     <ul id="footer-social"></ul>
   </footer>
 
-  <script src="js/script.js"></script>
+  <!-- 스크롤 300px 이상에서 나타나는 맨 위로 이동 버튼 (기준값: js/script.js의 SCROLL_TOP_THRESHOLD) -->
+  <button id="scroll-top" class="scroll-top" type="button" aria-label="맨 위로 이동">↑</button>
 </body>
 </html>

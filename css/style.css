@@ -71,13 +71,30 @@ header {
   position: sticky;  /* 스크롤해도 상단 고정 */
   top: 0;
   z-index: 100;
+  transition: background-color var(--transition), box-shadow var(--transition);
+}
+
+/* 스크롤 60px 이상 시 JS가 붙이는 클래스 (js/script.js의 NAV_SCROLL_THRESHOLD)
+   → 배경을 좀 더 진하게/그림자를 강하게 만들어 "떠 있는" 느낌을 준다. */
+header.scrolled {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 
 nav {
   display: flex;
   justify-content: space-between; /* 로고 ↔ 메뉴 양끝 배치 */
   align-items: center;
+  gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
+  position: relative; /* 모바일 드롭다운 메뉴(position: absolute)의 기준점 */
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: var(--color-text);
+  text-decoration: none;
+  margin-right: auto; /* 로고를 왼쪽 끝에 붙이고 나머지 요소는 오른쪽으로 밀어냄 */
 }
 
 /* 네비 메뉴 목록도 Flexbox로 가로 배치 */
@@ -102,14 +119,58 @@ nav a:hover {
    → 모바일에서만 보이게 할 것이므로
      기본(모바일 퍼스트)에서는 보이고,
      데스크톱에서 숨긴다.
+   → span 3개를 쌓아 실제 "≡" 아이콘 모양을 만들고,
+     JS가 붙이는 .active 클래스로 "X" 모양으로 변형시켜
+     열림/닫힘 상태를 시각적으로 보여준다.
    ============================================ */
 .hamburger {
-  display: block;          /* 모바일: 기본 표시 */
+  display: flex;            /* 모바일: 기본 표시 */
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 32px;
+  height: 32px;
   background: none;
   border: none;
-  font-size: 1.8rem;
   cursor: pointer;
-  color: var(--color-text);
+  padding: 0;
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-text);
+  border-radius: 2px;
+  transition: transform var(--transition), opacity var(--transition);
+}
+
+/* 열림 상태(.active): 위/아래 막대는 회전시켜 X자로, 가운데 막대는 숨김 */
+.hamburger.active span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.hamburger.active span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* 다크모드 토글 버튼: 카드/버튼과 다르게 배경 없는 아이콘 버튼으로 처리 */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--transition), border-color var(--transition);
+}
+
+.theme-toggle:hover {
+  transform: rotate(20deg);
 }
 
 /* ============================================
@@ -150,9 +211,11 @@ section {
   padding: var(--space-lg) var(--space-md);
 }
 
-/* 버튼 (CTA) - hover 효과 + transition */
+/* 버튼 (CTA) - hover 효과 + transition
+   → 햄버거/다크모드/스크롤탑 버튼은 아이콘 전용 버튼이라 별도 스타일을 가지므로
+     :not()으로 제외해 일반 button 규칙과 충돌하지 않게 한다. */
 #hero-cta,
-button {
+button:not(.hamburger):not(.theme-toggle):not(.scroll-top) {
   display: inline-block;
   background-color: var(--color-primary);
   color: #fff;
@@ -166,7 +229,7 @@ button {
 
 /* 마우스 올리면 살짝 커지고 반투명 → 상호작용 피드백 */
 #hero-cta:hover,
-button:hover {
+button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   transform: translateY(-3px);  /* 위로 살짝 뜸 */
   opacity: 0.9;
 }
@@ -227,6 +290,61 @@ button:hover {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
+/* 카드 안의 언어/스타 배지 (배열 map으로 렌더링되는 project-meta) */
+.project-meta {
+  display: flex;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+}
+
+.badge {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 2px var(--space-sm);
+  font-size: 0.8rem;
+}
+
+/* ============================================
+   11-1. Projects 로딩 / 에러 / 빈 상태
+   → JS의 loadProjects()가 fetch 상태에 따라
+     이 영역의 innerHTML을 바꿔치기한다.
+   ============================================ */
+.status-msg:empty {
+  display: none; /* 정상적으로 카드가 보일 때는 상태 영역을 아예 숨김 */
+}
+
+.status-msg {
+  text-align: center;
+  padding: var(--space-md);
+}
+
+.status-msg .error {
+  color: #e5484d;
+}
+
+/* 로딩 스피너: 별도 이미지 없이 border 회전만으로 구현 */
+.status-msg .loading::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#retry-btn {
+  margin-top: var(--space-sm);
+}
+
 /* ============================================
    12. Contact 폼
    ============================================ */
@@ -237,6 +355,12 @@ form {
   max-width: 500px;
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 input,
 textarea {
   padding: var(--space-sm);
@@ -244,6 +368,24 @@ textarea {
   border-radius: var(--radius);
   background-color: var(--color-bg);
   color: var(--color-text);
+  font-family: inherit;
+}
+
+/* 유효성 검사 실패 시 JS가 붙이는 클래스: 테두리를 빨갛게 강조 */
+input.invalid,
+textarea.invalid {
+  border-color: #e5484d;
+}
+
+.error-message {
+  color: #e5484d;
+  font-size: 0.85rem;
+  min-height: 1em; /* 메시지가 없을 때도 높이를 유지해 레이아웃이 덜컹거리지 않게 함 */
+}
+
+.success-message {
+  color: #2f9e44;
+  font-weight: bold;
 }
 
 /* ============================================
@@ -262,6 +404,54 @@ footer {
   gap: var(--space-md);
   list-style: none;
   margin-top: var(--space-sm);
+}
+
+/* ============================================
+   13-1. 스크롤 탑 버튼
+   → 기본은 화면 밖(투명 + 클릭 불가)에 두고,
+     JS가 스크롤 300px 이상일 때 .show 클래스를 붙이면 나타난다.
+     (display:none 대신 opacity/transform을 쓰는 이유:
+      나타날 때 transition으로 부드럽게 보이게 하기 위함)
+   ============================================ */
+.scroll-top {
+  position: fixed;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity var(--transition), transform var(--transition), visibility var(--transition);
+  z-index: 100;
+}
+
+.scroll-top.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* ============================================
+   13-2. 스크롤 등장 애니메이션 (Intersection Observer)
+   → 기본 상태는 살짝 아래 + 투명, 화면에 들어오면 JS가 .visible을 붙여
+     제자리로 올라오며 나타나게 한다.
+   ============================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ============================================

@@ -1,6 +1,6 @@
 // 페이지 로드 시 실행
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. data.json 파일 읽기
+  // 1. info.json 파일 읽기
   const res = await fetch("data/info.json");
   const data = await res.json();
 

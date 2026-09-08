@@ -22,8 +22,9 @@ HTML/CSS/JavaScript(순수 바닐라)만으로 제작한 1인 개발자 포트�
 
 - **HTML5**: 시맨틱 태그(`header`, `nav`, `main`, `section`, `article`, `footer`)로 구조화
 - **CSS3**: CSS 변수(`:root`), Flexbox, Grid, `@media` 반응형, `transition`/`@keyframes` 애니메이션
-- **JavaScript (ES6+, 순수 바닐라)**: `fetch`/`async-await`, `IntersectionObserver`, `localStorage`,
-  화살표 함수, 구조분해 할당, 템플릿 리터럴, `map`/`filter`/`forEach`
+- **JavaScript (ES6+, 순수 바닐라)**: `fetch`/`async-await`, `AbortController`(요청 타임아웃),
+  `IntersectionObserver`, `localStorage`, `matchMedia`(`prefers-color-scheme`),
+  화살표 함수, 구조분해 할당, 템플릿 리터럴, `map`/`filter`/`forEach`, 단일 `STATE` 객체 기반 상태 관리
 - **GitHub REST API**: `GET /users/{username}/repos`
 - **배포**: GitHub Pages
 
@@ -49,15 +50,16 @@ Portfolio/
 | 네비게이션 배경 변경 시작 스크롤 위치 | `60px` | `NAV_SCROLL_THRESHOLD` |
 | 스크롤 탑 버튼이 나타나는 스크롤 위치 | `300px` | `SCROLL_TOP_THRESHOLD` |
 | 스크롤 등장 애니메이션(IntersectionObserver) 임계값 | `0.2` (20% 노출 시 실행) | `REVEAL_THRESHOLD` |
+| GitHub API 요청 타임아웃 | `8000ms` | `FETCH_TIMEOUT_MS` |
 | 반응형 브레이크포인트 | `768px`(태블릿), `1024px`(데스크톱) | `css/style.css` `@media` |
 
 ## 인터랙션 목록
 
-- **다크 모드 토글**: 우측 상단 버튼 클릭 → `html[data-theme]` 속성 전환 → `localStorage`에 저장되어 새로고침 후에도 유지
-- **햄버거 메뉴**: 768px 미만 화면에서 메뉴 버튼 클릭 시 `classList.toggle('active')`로 열림/닫힘
+- **다크 모드 토글**: 우측 상단 버튼 클릭 → `html[data-theme]` 속성 전환 → `localStorage`에 저장되어 새로고침 후에도 유지. 저장된 값이 없는 첫 방문 시에는 OS의 `prefers-color-scheme`(다크 모드 선호 여부)를 확인해 초기 테마를 정한다 (`getInitialTheme()`)
+- **햄버거 메뉴**: 768px 미만 화면에서 메뉴 버튼 클릭 시 `classList.toggle('active')`로 열림/닫힘. 메뉴가 열린 상태에서 `Esc` 키를 누르면 닫히고 포커스가 햄버거 버튼으로 돌아간다 (키보드 접근성)
 - **부드러운 스크롤**: 네비게이션 클릭 시 `scrollIntoView({ behavior: 'smooth' })`로 해당 섹션 이동
 - **스크롤 탑 버튼**: 300px 이상 스크롤 시 표시, 클릭 시 최상단으로 이동
-- **Projects 섹션**: GitHub API에서 저장소 목록을 가져와 로딩 → 성공/빈 상태/에러(재시도 버튼 포함) 순으로 렌더링
+- **Projects 섹션**: GitHub API에서 저장소 목록을 가져와 로딩 → 성공/빈 상태/에러(재시도 버튼 포함) 순으로 렌더링. 요청이 8초(`FETCH_TIMEOUT_MS`) 안에 끝나지 않으면 자동 취소하고, 상태 코드(403/404/5xx)·네트워크 단절·타임아웃을 구분한 안내 메시지를 보여준다
 - **문의 폼 유효성 검사**: 이름/이메일/메시지 필수 입력 검증 + 이메일 형식 검증, 필드 근처에 에러 메시지 표시, 통과 시 성공 메시지 표시
 
 ## 상태(state) → 렌더링 흐름 (React의 상태-렌더링 기초 연습)
@@ -69,15 +71,16 @@ DOM을 직접 여기저기서 건드리는 대신 **`setState(patch)` → `STATE
 ```js
 const STATE = {
   theme, navOpen, scrolled, showScrollTop,
-  projects: { status, items, username },
+  projects: { status, items, username, message }, // message: 에러 상태일 때 원인별 안내 문구
   formErrors, formSuccess,
 };
 ```
 
-1. **다크 모드**: 버튼 클릭(이벤트) → `setState({ theme })`로 `STATE.theme` 변경(상태) → `renderTheme()`이 `data-theme` 속성/버튼 아이콘 갱신 → CSS 변수로 전체 배색 변경(렌더링)
-2. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → `setState({ projects: {...} })`로 로딩/성공/에러/빈 상태 변경(상태) → `renderProjects()`가 `#projects-list` innerHTML 교체(렌더링)
-3. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
-4. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
+1. **다크 모드**: 버튼 클릭(이벤트) → `setState({ theme })`로 `STATE.theme` 변경(상태) → `renderTheme()`이 `data-theme` 속성/버튼 아이콘 갱신 → CSS 변수로 전체 배색 변경(렌더링). 초기값은 `getInitialTheme()`이 `localStorage` → `prefers-color-scheme` 순으로 결정
+2. **햄버거 메뉴**: 버튼 클릭 또는 열린 상태에서 `Esc`(이벤트) → `setState({ navOpen })`로 열림/닫힘 상태 변경 → `renderNav()`가 `.active` 클래스와 `aria-expanded`를 갱신(렌더링)
+3. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → `loadProjects()`가 `setState({ projects: {...} })`로 로딩/성공/에러(상태코드·네트워크·타임아웃별 `message` 포함)/빈 상태 변경(상태) → `renderProjects()`가 `#projects-list`/`#projects-status` innerHTML 교체(렌더링)
+4. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
+5. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
 
 `setState`는 바뀐 키에 매핑된 `render*()` 함수만 실행합니다(`RENDERERS` 매핑 테이블).
 그래서 스크롤처럼 자주 발생하는 이벤트가 프로젝트 카드나 폼처럼 무관한 영역까지
@@ -85,6 +88,11 @@ const STATE = {
 
 반면 Hero/About/Skills/Footer의 콘텐츠(`data/info.json` 값)는 페이지 로드 시 한 번만
 채워지고 이후 바뀌지 않는 정적인 값이라 `STATE`에 포함하지 않았습니다.
+
+모든 이벤트 핸들러(`handleThemeToggleClick`, `handleHamburgerClick`, `handleNavLinkClick`,
+`handleScroll`, `handleScrollTopClick`, `handleFormSubmit`, `handleKeydown` 등)는
+`addEventListener`에 넘기는 익명 함수 대신 이름 붙은 함수로 분리되어 있어,
+어떤 이벤트가 `STATE`의 어떤 값을 바꾸는지 함수 이름만으로 추적할 수 있습니다.
 
 ## 로컬 개발 환경
 

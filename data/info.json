@@ -1,0 +1,25 @@
+{
+  "hero": {
+    "greeting": "안녕하세요, 프론트엔드 개발자 이경희 입니다",
+    "ctaText": "프로젝트 보기",
+    "ctaLink": "#projects"
+  },
+  "about": {
+    "text": "사용자 경험을 중요하게 생각하는 개발자입니다. 웹 표준과 접근성을 지키며 성장하고 있습니다.",
+    "image": "images/profile.jpg",
+    "imageAlt": "홍길동의 프로필 사진"
+  },
+  "skills": ["HTML", "CSS", "JavaScript", "React", "Git"],
+  "github": {
+    "username": "aha645"
+  },
+  "contact": {
+    "email": "thinkover2022@gmail.com"
+  },
+  "footer": {
+    "copyright": "© 2026 이경희. All rights reserved.",
+    "social": [
+      { "name": "GitHub", "url": "https://github.com/aha645" }
+    ]
+  }
+}

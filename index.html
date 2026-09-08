@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>포트폴리오</title>
+</head>
+<body>
+  <!-- 헤더 + 네비게이션 -->
+  <header>
+    <nav>
+      <ul>
+        <li><a href="#hero">홈</a></li>
+        <li><a href="#about">소개</a></li>
+        <li><a href="#skills">기술</a></li>
+        <li><a href="#projects">프로젝트</a></li>
+        <li><a href="#contact">문의</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hero 섹션 -->
+    <section id="hero">
+      <h1 id="hero-greeting"></h1>
+      <a id="hero-cta" href="#">버튼</a>
+    </section>
+
+    <!-- About 섹션 -->
+    <section id="about">
+      <h2>소개</h2>
+      <img id="about-img" src="" alt="" />
+      <p id="about-text"></p>
+    </section>
+
+    <!-- Skills 섹션 -->
+    <section id="skills">
+      <h2>기술 스택</h2>
+      <ul id="skills-list"></ul>
+    </section>
+
+    <!-- Projects 섹션 (GitHub API) -->
+    <section id="projects">
+      <h2>프로젝트</h2>
+      <div id="projects-list"></div>
+    </section>
+
+    <!-- Contact 섹션 -->
+    <section id="contact">
+      <h2>문의하기</h2>
+      <form>
+        <label for="name">이름</label>
+        <input type="text" id="name" name="name" />
+
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" />
+
+        <label for="message">메시지</label>
+        <textarea id="message" name="message"></textarea>
+
+        <button type="submit">보내기</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p id="footer-copyright"></p>
+    <ul id="footer-social"></ul>
+  </footer>
+
+  <script src="js/script.js"></script>
+</body>
+</html>

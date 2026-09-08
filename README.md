@@ -62,9 +62,29 @@ Portfolio/
 
 ## 상태(state) → 렌더링 흐름 (React의 상태-렌더링 기초 연습)
 
-1. **다크 모드**: 버튼 클릭(이벤트) → `data-theme` 속성 변경(상태) → CSS 변수로 전체 배색 변경(렌더링)
-2. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → 로딩/성공/에러/빈 상태 변경(상태) → `#projects-list` innerHTML 교체(렌더링)
-3. **폼 검증**: 입력/제출(이벤트) → 필드별 유효성 결과 변경(상태) → 에러 메시지 표시·숨김(렌더링)
+`js/script.js`에는 앱의 모든 동적인 값을 모아둔 단일 `STATE` 객체가 있습니다.
+DOM을 직접 여기저기서 건드리는 대신 **`setState(patch)` → `STATE` 갱신 → 관련 `render*()` 함수 실행**
+한 방향으로만 화면이 바뀌도록 강제해서, "지금 앱이 어떤 상태인지"를 `STATE` 객체 하나만 보고 알 수 있습니다.
+
+```js
+const STATE = {
+  theme, navOpen, scrolled, showScrollTop,
+  projects: { status, items, username },
+  formErrors, formSuccess,
+};
+```
+
+1. **다크 모드**: 버튼 클릭(이벤트) → `setState({ theme })`로 `STATE.theme` 변경(상태) → `renderTheme()`이 `data-theme` 속성/버튼 아이콘 갱신 → CSS 변수로 전체 배색 변경(렌더링)
+2. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → `setState({ projects: {...} })`로 로딩/성공/에러/빈 상태 변경(상태) → `renderProjects()`가 `#projects-list` innerHTML 교체(렌더링)
+3. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
+4. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
+
+`setState`는 바뀐 키에 매핑된 `render*()` 함수만 실행합니다(`RENDERERS` 매핑 테이블).
+그래서 스크롤처럼 자주 발생하는 이벤트가 프로젝트 카드나 폼처럼 무관한 영역까지
+다시 그리며 애니메이션을 끊거나 성능을 낭비하지 않습니다.
+
+반면 Hero/About/Skills/Footer의 콘텐츠(`data/info.json` 값)는 페이지 로드 시 한 번만
+채워지고 이후 바뀌지 않는 정적인 값이라 `STATE`에 포함하지 않았습니다.
 
 ## 로컬 개발 환경
 

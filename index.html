@@ -41,9 +41,9 @@
       <!--
         [HTML ↔ CSS 대응] class="theme-toggle" → css의 `.theme-toggle` 규칙이
         36px 원형 아이콘 버튼 모양(테두리+border-radius:50%)을 만든다.
-        [HTML ↔ JS 대응] id="theme-toggle" → js/script.js의 initTheme()/applyTheme()이
-        이 버튼의 click 이벤트를 듣고, 클릭할 때마다 <html>의 data-theme 속성을
-        "light" ↔ "dark"로 바꾸며 버튼 안의 이모지(🌙/☀️) 텍스트도 함께 바꾼다.
+        [HTML ↔ JS 대응] id="theme-toggle" → js/script.js가 이 버튼의 click 이벤트를 듣고
+        setState({ theme: ... })로 STATE.theme을 바꾼다. 그러면 renderTheme()이 <html>의
+        data-theme 속성을 "light" ↔ "dark"로 바꾸며 버튼 안의 이모지(🌙/☀️) 텍스트도 함께 바꾼다.
         화면에서는: 버튼을 누를 때마다 아이콘이 바뀌고 전체 배경/글자색이 부드럽게 전환된다.
       -->
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="다크 모드 전환">🌙</button>
@@ -147,7 +147,8 @@
     <section id="projects" class="reveal">
       <h2>프로젝트</h2>
       <!--
-        [HTML ↔ JS 대응] id="projects-status" → js의 renderStatus()가 fetch 상태에 따라
+        [HTML ↔ JS 대응] id="projects-status" → js의 loadProjects()가 fetch 상태에 따라
+        setState({ projects: {...} })로 STATE.projects.status를 바꾸고, renderProjects()가
         이 div의 innerHTML을 통째로 교체한다: 로딩 중엔 "로딩 중..." 문구,
         실패하면 에러 문구+"다시 시도" 버튼, 결과가 0개면 "표시할 프로젝트가 없습니다",
         성공하면 빈 문자열("")을 넣어 이 영역 자체를 비운다.

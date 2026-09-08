@@ -10,6 +10,7 @@
   --color-primary: #4a6cf7;   /* 강조색(버튼 등) */
   --color-card: #f5f6fa;      /* 카드 배경 */
   --color-border: #e0e0e0;    /* 테두리 */
+  --color-header-scrolled: #eceef5; /* 스크롤 시 헤더 배경 (요구사항: 60px 이상 스크롤 시 네비게이션 배경색 변경) */
 
   /* 폰트 */
   --font-main: 'Segoe UI', sans-serif;
@@ -26,9 +27,13 @@
 
 /* ============================================
    2. 다크 모드 변수 ([data-theme="dark"])
+   [JS 연동] index.html의 <html> 태그는 원래 data-theme 속성이 없다.
+   js/script.js의 applyTheme()이 #theme-toggle 버튼 클릭 시
+   document.documentElement.setAttribute('data-theme', 'dark' | 'light')를
+   실행해야만 이 규칙이 켜진다. CSS는 "속성이 있으면 변수를 바꾼다"까지만 담당하고,
+   "언제 속성을 붙일지"는 전적으로 JS의 몫이다.
    → <html data-theme="dark"> 로 바뀌면
      같은 변수명에 다른 값이 적용되어 테마가 전환된다.
-     (JS로 data-theme 속성을 토글할 예정)
    ============================================ */
 [data-theme="dark"] {
   --color-bg: #1a1a2e;
@@ -36,6 +41,7 @@
   --color-primary: #6c8cff;
   --color-card: #24243e;
   --color-border: #3a3a5a;
+  --color-header-scrolled: #2e2e4d; /* 다크모드에서도 스크롤 시 배경색이 구분되게 별도 정의 */
 }
 
 /* ============================================
@@ -65,6 +71,8 @@ body {
      로고는 왼쪽, 메뉴는 오른쪽으로 자동 배치된다.
    → align-items: center 로 세로 중앙 정렬.
    ============================================ */
+/* [CSS 단독] index.html의 <header id="site-header">에 대응.
+   position:sticky만으로 "스크롤해도 상단 고정"이 되며, JS 없이 브라우저가 알아서 처리한다. */
 header {
   background-color: var(--color-card);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); /* 헤더 구분용 그림자 */
@@ -74,12 +82,19 @@ header {
   transition: background-color var(--transition), box-shadow var(--transition);
 }
 
-/* 스크롤 60px 이상 시 JS가 붙이는 클래스 (js/script.js의 NAV_SCROLL_THRESHOLD)
-   → 배경을 좀 더 진하게/그림자를 강하게 만들어 "떠 있는" 느낌을 준다. */
+/* [JS 연동] index.html의 <header id="site-header">에 js/script.js가
+   window의 scroll 이벤트를 듣다가 스크롤이 60px(NAV_SCROLL_THRESHOLD)을 넘는 순간
+   classList.toggle('scrolled')로 이 클래스를 붙였다 뗐다 한다.
+   → 요구사항: "60px 이상 스크롤 시 네비게이션 배경색이 변경된다"를 만족시키기 위해
+   background-color를 --color-card(기본)에서 --color-header-scrolled(살짝 더 진한 톤)로
+   바꾸고, 그림자도 함께 진하게 만들어 "떠 있는" 느낌을 더한다. */
 header.scrolled {
+  background-color: var(--color-header-scrolled);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 
+/* [CSS 단독] index.html의 <nav> 태그 자체에 대응. 여기 안에 로고, 다크모드 버튼,
+   햄버거 버튼, ul#nav-menu가 순서대로 들어있다. */
 nav {
   display: flex;
   justify-content: space-between; /* 로고 ↔ 메뉴 양끝 배치 */
@@ -89,6 +104,9 @@ nav {
   position: relative; /* 모바일 드롭다운 메뉴(position: absolute)의 기준점 */
 }
 
+/* [CSS 단독] index.html의 <a class="logo">에 대응. JS가 전혀 관여하지 않는 순수 레이아웃/
+   타이포그래피 스타일이다. margin-right:auto가 flex 컨테이너(nav)의 남은 공간을
+   전부 이 요소 오른쪽에 밀어 넣어, 결과적으로 로고 하나만 왼쪽 끝에 고정된다. */
 .logo {
   font-weight: bold;
   font-size: 1.2rem;
@@ -97,28 +115,43 @@ nav {
   margin-right: auto; /* 로고를 왼쪽 끝에 붙이고 나머지 요소는 오른쪽으로 밀어냄 */
 }
 
-/* 네비 메뉴 목록도 Flexbox로 가로 배치 */
+/* [CSS 단독 + JS와 동시 적용] 태그 선택자라 index.html의 <ul id="nav-menu">에
+   자동으로 적용된다. 아래 "6. 모바일 퍼스트" 블록에서 같은 `nav ul` 선택자로
+   display 값이 다시 정의되므로, 최종 display 값은 그 블록과 미디어쿼리 순서에 따라 결정된다
+   (CSS는 나중에 나온 규칙이 우선). */
 nav ul {
   display: flex;
   gap: var(--space-md);   /* 메뉴 사이 간격 */
   list-style: none;       /* 점(•) 제거 */
 }
 
+/* [CSS 단독] 태그 선택자라 nav 안의 모든 <a>(로고 제외, 로고는 .logo가 별도 스타일)에
+   적용된다. index.html의 nav-link들은 class="nav-link"를 갖고 있지만 이 규칙은
+   그 클래스가 아니라 "nav 안의 a 태그"라는 위치로 선택한 것 — nav-link 클래스는
+   CSS가 아니라 JS(querySelectorAll)만 사용한다. */
 nav a {
   text-decoration: none;
   color: var(--color-text);
   transition: color var(--transition); /* 호버 시 부드럽게 색 변화 */
 }
 
+/* [CSS 단독] 마우스를 올렸다 떼는 것만으로 브라우저가 자동 적용/해제하는
+   가상클래스(:hover)다. JS의 개입이 전혀 없다. */
 nav a:hover {
   color: var(--color-primary); /* 마우스 올리면 강조색으로 */
 }
 
 /* ============================================
    5. 햄버거 버튼
+   [HTML 대응] index.html의 <button id="hamburger" class="hamburger">와
+   그 안의 <span></span> 3개.
+   [CSS 단독] 기본 모양(≡ 아이콘)과 768px 이상에서 숨기는 것은 순수 CSS(미디어쿼리)다.
    → 모바일에서만 보이게 할 것이므로
      기본(모바일 퍼스트)에서는 보이고,
      데스크톱에서 숨긴다.
+   [JS 연동] "X" 모양 변형은 JS가 없으면 절대 일어나지 않는다 — js/script.js가
+   버튼 click 시 이 요소 자신에 classList.toggle('active')를 실행해야
+   아래 `.hamburger.active span:nth-child(n)` 규칙이 켜진다.
    → span 3개를 쌓아 실제 "≡" 아이콘 모양을 만들고,
      JS가 붙이는 .active 클래스로 "X" 모양으로 변형시켜
      열림/닫힘 상태를 시각적으로 보여준다.
@@ -145,7 +178,8 @@ nav a:hover {
   transition: transform var(--transition), opacity var(--transition);
 }
 
-/* 열림 상태(.active): 위/아래 막대는 회전시켜 X자로, 가운데 막대는 숨김 */
+/* [JS 연동] .hamburger.active는 js가 붙여야만 존재하는 클래스 조합.
+   열림 상태(.active): 위/아래 막대는 회전시켜 X자로, 가운데 막대는 숨김 */
 .hamburger.active span:nth-child(1) {
   transform: translateY(7px) rotate(45deg);
 }
@@ -156,7 +190,11 @@ nav a:hover {
   transform: translateY(-7px) rotate(-45deg);
 }
 
-/* 다크모드 토글 버튼: 카드/버튼과 다르게 배경 없는 아이콘 버튼으로 처리 */
+/* [HTML 대응] index.html의 <button id="theme-toggle" class="theme-toggle">.
+   [CSS 단독] 버튼의 생김새(원형 아이콘)는 클릭 여부와 무관하게 항상 이 모양이다.
+   실제로 테마를 바꾸는 것은 이 파일이 아니라 js/script.js + 위쪽 2번
+   [data-theme="dark"] 변수 블록이 담당한다. 다크모드 토글 버튼: 카드/버튼과
+   다르게 배경 없는 아이콘 버튼으로 처리 */
 .theme-toggle {
   background: none;
   border: 1px solid var(--color-border);
@@ -169,12 +207,17 @@ nav a:hover {
   transition: transform var(--transition), border-color var(--transition);
 }
 
+/* [CSS 단독] :hover 가상클래스 — 마우스가 버튼 위에 있는 동안만 브라우저가
+   자동으로 켜고 끈다. JS는 관여하지 않는다. */
 .theme-toggle:hover {
   transform: rotate(20deg);
 }
 
 /* ============================================
    6. 모바일 퍼스트 - 네비 메뉴 기본 숨김
+   [HTML 대응] index.html의 <ul id="nav-menu">. (선택자는 태그 기반 `nav ul`이지만
+   이 페이지에는 nav 안의 ul이 이것 하나뿐이라 사실상 #nav-menu를 가리킨다.)
+   [CSS 단독] "기본은 숨김, 768px부터 항상 보임"은 순수 CSS 미디어쿼리 로직이다.
    → 작은 화면에서는 메뉴를 숨기고
      햄버거 버튼을 누르면(.active) 나타나게 한다.
    ============================================ */
@@ -189,13 +232,17 @@ nav ul {
   width: 200px;
 }
 
-/* JS로 .active 클래스가 붙으면 메뉴 표시 */
+/* [JS 연동] js가 #hamburger 클릭 시 이 #nav-menu에 classList.toggle('active')를
+   실행해야만 이 규칙이 켜져 드롭다운이 열린다. */
 nav ul.active {
   display: flex;
 }
 
 /* ============================================
    7. 공통 섹션 여백
+   [CSS 단독] index.html의 모든 <section>(hero/about/skills/projects/contact)에
+   공통 적용되는 여백/정렬 규칙. 콘텐츠가 무엇이든(JS가 채우기 전/후 상관없이)
+   레이아웃 틀은 항상 동일하게 유지된다.
    ============================================ */
 section {
   padding: var(--space-lg);
@@ -205,13 +252,17 @@ section {
 
 /* ============================================
    8. Hero 섹션
+   [HTML 대응] index.html의 <section id="hero">. 내부 텍스트(h1, a)는
+   js/script.js가 채우지만, 이 정렬/여백 자체는 CSS 단독으로 결정된다.
    ============================================ */
 #hero {
   text-align: center;
   padding: var(--space-lg) var(--space-md);
 }
 
-/* 버튼 (CTA) - hover 효과 + transition
+/* [HTML 대응] #hero-cta는 index.html의 <a id="hero-cta">, `button:not(...)`은
+   #retry-btn(에러 재시도), 문의 폼의 submit 버튼처럼 클래스가 없는 일반 <button>들.
+   [CSS 단독] 이 모양/hover 효과는 JS 상태와 무관하게 항상 동일하게 적용된다.
    → 햄버거/다크모드/스크롤탑 버튼은 아이콘 전용 버튼이라 별도 스타일을 가지므로
      :not()으로 제외해 일반 button 규칙과 충돌하지 않게 한다. */
 #hero-cta,
@@ -227,7 +278,7 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top) {
   transition: transform var(--transition), opacity var(--transition);
 }
 
-/* 마우스 올리면 살짝 커지고 반투명 → 상호작용 피드백 */
+/* [CSS 단독] :hover 가상클래스. 마우스 올리면 살짝 커지고 반투명 → 상호작용 피드백 */
 #hero-cta:hover,
 button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   transform: translateY(-3px);  /* 위로 살짝 뜸 */
@@ -236,6 +287,8 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
 
 /* ============================================
    9. About 이미지
+   [HTML 대응] index.html의 <img id="about-img">. src/alt 값은 js가 채워 넣지만,
+   [CSS 단독] "150px 정원으로 잘려 보인다"는 시각적 모양은 JS와 무관하게 항상 고정이다.
    ============================================ */
 #about-img {
   width: 150px;
@@ -246,6 +299,8 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
 
 /* ============================================
    10. Skills 목록
+   [HTML 대응] index.html의 <ul id="skills-list">. js가 <li>들을 채워 넣기 "전"에도
+   이 그리드/여백 규칙 자체는 이미 유효하다(빈 리스트는 그냥 아무것도 안 보일 뿐).
    → Flexbox + wrap 으로 태그처럼 나열
    ============================================ */
 #skills-list {
@@ -264,6 +319,12 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
 
 /* ============================================
    11. Projects 카드 (Grid)
+   [HTML 대응] index.html의 <div id="projects-list">. class가 아니라 id로 선택한
+   이유는 이 div가 페이지에 하나뿐이고, JS도 동일하게
+   document.getElementById('projects-list')로 접근하기 때문 — id 하나로
+   "JS가 내용을 채우는 대상"과 "CSS가 레이아웃을 잡는 대상"이 정확히 일치한다.
+   [CSS 단독] 카드가 몇 개든(0개~수십 개) auto-fit이 알아서 줄 수를 재계산하므로
+   JS는 "카드를 몇 개 넣을지"만 결정하고 "몇 줄로 배치할지"는 신경 쓰지 않아도 된다.
    → auto-fit + minmax 로 화면 너비에 따라
      카드 개수가 자동 조절되는 반응형 그리드.
      minmax(280px, 1fr):
@@ -275,7 +336,9 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   gap: var(--space-md);
 }
 
-/* 카드 스타일 + box-shadow + hover 효과 */
+/* [HTML 대응] js의 renderProjects()가 innerHTML로 삽입하는
+   <article class="project-card reveal"> 각각에 적용된다.
+   [CSS 단독] 카드 스타일 + box-shadow + hover 효과 */
 #projects-list article {
   background-color: var(--color-card);
   border-radius: var(--radius);
@@ -284,13 +347,15 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   transition: transform var(--transition), box-shadow var(--transition);
 }
 
-/* 호버 시 카드가 떠오르고 그림자가 진해짐 */
+/* [CSS 단독] :hover 가상클래스. 호버 시 카드가 떠오르고 그림자가 진해짐 */
 #projects-list article:hover {
   transform: translateY(-6px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
-/* 카드 안의 언어/스타 배지 (배열 map으로 렌더링되는 project-meta) */
+/* [HTML 대응] renderProjects()의 템플릿 리터럴이 만드는
+   `<div class="project-meta"><span class="badge">...</span></div>` 구조.
+   카드 안의 언어/스타 배지 (배열 map으로 렌더링되는 project-meta) */
 .project-meta {
   display: flex;
   gap: var(--space-sm);
@@ -307,9 +372,14 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
 
 /* ============================================
    11-1. Projects 로딩 / 에러 / 빈 상태
-   → JS의 loadProjects()가 fetch 상태에 따라
-     이 영역의 innerHTML을 바꿔치기한다.
+   [HTML 대응] index.html의 <div id="projects-status" class="status-msg">.
+   [JS 연동] js의 renderStatus()가 fetch 상태에 따라 이 영역의 innerHTML을
+   <p class="loading">/<p class="error">/<p class="empty">로 바꿔치기하거나,
+   성공 시에는 빈 문자열("")을 넣는다.
    ============================================ */
+/* [CSS 단독이지만 JS가 만드는 상태를 활용] :empty 가상클래스는 "자식 노드가 없을 때"를
+   뜻한다. renderStatus("")로 내용을 비우는 순간(JS 성공 상태) 이 규칙이 자동으로
+   켜져서 영역 전체가 사라진다 — JS가 display를 직접 조작하지 않아도 되는 이유. */
 .status-msg:empty {
   display: none; /* 정상적으로 카드가 보일 때는 상태 영역을 아예 숨김 */
 }
@@ -319,11 +389,15 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   padding: var(--space-md);
 }
 
+/* [HTML 대응] renderStatus()가 삽입하는 <p class="error">.
+   `.status-msg .error`는 후손 선택자라서, 부모(#projects-status)가 항상 갖고 있는
+   class="status-msg"와 자식 <p class="error">가 만나야 매치된다. */
 .status-msg .error {
   color: #e5484d;
 }
 
-/* 로딩 스피너: 별도 이미지 없이 border 회전만으로 구현 */
+/* [HTML 대응] renderStatus()가 삽입하는 <p class="loading">.
+   로딩 스피너: 별도 이미지 없이 border 회전만으로 구현 (아래 @keyframes spin과 짝) */
 .status-msg .loading::before {
   content: "";
   display: inline-block;
@@ -337,17 +411,23 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   vertical-align: middle;
 }
 
+/* [CSS 단독] @keyframes는 순수 CSS 애니메이션 정의. border-top-color만 다르게 줘서
+   회전할 때 "한 조각이 도는" 스피너처럼 보이게 하는 흔한 기법이다. */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
+/* [HTML 대응] 에러 상태일 때만 js가 renderStatus()로 만들어 삽입하는
+   <button id="retry-btn">. 평소에는 DOM에 존재하지 않는다. */
 #retry-btn {
   margin-top: var(--space-sm);
 }
 
 /* ============================================
    12. Contact 폼
+   [HTML 대응] index.html의 <form id="contact-form">.
    ============================================ */
+/* [CSS 단독] 폼 자체의 세로 배치는 JS 상태와 무관하게 항상 동일하다. */
 form {
   display: flex;
   flex-direction: column;
@@ -355,6 +435,8 @@ form {
   max-width: 500px;
 }
 
+/* [HTML 대응] label + input/textarea + span.error-message를 감싸는
+   <div class="form-group"> 3개(이름/이메일/메시지)에 적용. */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -371,18 +453,26 @@ textarea {
   font-family: inherit;
 }
 
-/* 유효성 검사 실패 시 JS가 붙이는 클래스: 테두리를 빨갛게 강조 */
+/* [JS 연동] js의 setFieldError()가 유효성 검사에 실패한 input/textarea에만
+   classList.toggle('invalid', true)로 이 클래스를 붙인다.
+   유효성 검사 실패 시 JS가 붙이는 클래스: 테두리를 빨갛게 강조 */
 input.invalid,
 textarea.invalid {
   border-color: #e5484d;
 }
 
+/* [HTML 대응] index.html의 3개 <span class="error-message" id="___-error">.
+   [JS 연동] 실제 문구(textContent)는 js가 넣지만, 색상/여백/최소 높이는
+   [CSS 단독]으로 항상 고정되어 있어 "메시지가 없을 때도 자리(1em 높이)"는 유지된다.
+   → 텍스트가 나타났다 사라져도 아래 요소가 덜컹거리며 밀리지 않는다. */
 .error-message {
   color: #e5484d;
   font-size: 0.85rem;
   min-height: 1em; /* 메시지가 없을 때도 높이를 유지해 레이아웃이 덜컹거리지 않게 함 */
 }
 
+/* [HTML 대응] index.html의 <p id="form-success" class="success-message">.
+   [JS 연동] 폼 검증을 모두 통과했을 때만 js가 이 안에 문구를 채운다. */
 .success-message {
   color: #2f9e44;
   font-weight: bold;
@@ -390,6 +480,8 @@ textarea.invalid {
 
 /* ============================================
    13. Footer
+   [HTML 대응] index.html의 <footer>. copyright/social 내용은 js가 채우지만
+   레이아웃(가운데 정렬, 카드색 배경)은 CSS 단독으로 고정.
    ============================================ */
 footer {
   text-align: center;
@@ -398,6 +490,8 @@ footer {
   margin-top: var(--space-lg);
 }
 
+/* [HTML 대응] index.html의 <ul id="footer-social">. js가 forEach로 만드는
+   <li><a>...</a></li> 목록을 가로 가운데 정렬한다. */
 #footer-social {
   display: flex;
   justify-content: center;
@@ -408,6 +502,10 @@ footer {
 
 /* ============================================
    13-1. 스크롤 탑 버튼
+   [HTML 대응] index.html의 <button id="scroll-top" class="scroll-top">
+   (body 맨 끝, footer 바깥에 위치 — position:fixed로 항상 화면 우하단에 떠 있기 위함).
+   [JS 연동] .show 클래스는 js가 scroll 이벤트에서 300px(SCROLL_TOP_THRESHOLD)를
+   기준으로 붙였다 뗐다 한다. 버튼 클릭 자체(맨 위로 이동)도 js가 처리한다.
    → 기본은 화면 밖(투명 + 클릭 불가)에 두고,
      JS가 스크롤 300px 이상일 때 .show 클래스를 붙이면 나타난다.
      (display:none 대신 opacity/transform을 쓰는 이유:
@@ -432,6 +530,8 @@ footer {
   z-index: 100;
 }
 
+/* [JS 연동] .show가 js에 의해 붙는 순간, 위 .scroll-top의 opacity:0/visibility:hidden을
+   덮어써서 버튼이 서서히 나타난다(transition은 .scroll-top 쪽에 이미 정의됨). */
 .scroll-top.show {
   opacity: 1;
   visibility: visible;
@@ -440,6 +540,10 @@ footer {
 
 /* ============================================
    13-2. 스크롤 등장 애니메이션 (Intersection Observer)
+   [HTML 대응] index.html의 모든 <section class="reveal">과, js가 동적으로 만드는
+   <article class="project-card reveal"> 카드들.
+   [JS 연동] .visible 클래스는 js/script.js의 공용 revealObserver(observeReveal())가
+   해당 요소가 뷰포트에 REVEAL_THRESHOLD(0.2 = 20%) 이상 들어왔을 때만 붙여준다.
    → 기본 상태는 살짝 아래 + 투명, 화면에 들어오면 JS가 .visible을 붙여
      제자리로 올라오며 나타나게 한다.
    ============================================ */
@@ -456,15 +560,22 @@ footer {
 
 /* ============================================
    14. 반응형 - 태블릿 (768px 이상)
+   [CSS 단독] 화면 폭이 바뀌는 것만으로 브라우저가 자동으로 이 블록을 켜고 끈다.
+   JS는 창 크기 변화를 전혀 감지하지 않는다 — 반응형은 100% CSS의 역할이다.
    → 모바일 퍼스트이므로 min-width 사용:
      "768px 이상일 때 이 스타일을 덮어쓴다"
    ============================================ */
 @media (min-width: 768px) {
-  /* 태블릿부터 햄버거 숨기고 메뉴를 가로로 표시 */
+  /* [HTML 대응] <button class="hamburger">. 768px 이상에서는 JS의 .active
+     상태와 무관하게 항상 display:none으로 강제 숨김된다.
+     태블릿부터 햄버거 숨기고 메뉴를 가로로 표시 */
   .hamburger {
     display: none;
   }
 
+  /* [HTML 대응] <ul id="nav-menu">. 여기서도 JS의 .active 여부와 무관하게
+     항상 display:flex + position:static이 적용되어, 모바일 드롭다운 스타일이
+     완전히 무력화되고 "항상 펼쳐진 가로 메뉴"가 된다. */
   nav ul {
     display: flex;             /* 다시 보이게 */
     flex-direction: row;       /* 가로 배치 */
@@ -477,6 +588,7 @@ footer {
 
 /* ============================================
    15. 반응형 - 데스크톱 (1024px 이상)
+   [CSS 단독] 이 블록도 JS 개입 없이 화면 폭만으로 전환된다.
    → 큰 화면에서 여백/폰트를 넉넉하게
    ============================================ */
 @media (min-width: 1024px) {
@@ -484,6 +596,8 @@ footer {
     padding: calc(var(--space-lg) * 1.5) var(--space-lg);
   }
 
+  /* [HTML 대응] <h1 id="hero-greeting">. 텍스트 내용은 js가 채우지만
+     글자 크기는 화면 폭에 따라 CSS가 단독으로 결정한다. */
   #hero-greeting {
     font-size: 2.5rem;   /* 큰 화면에서 제목 강조 */
   }

@@ -62,9 +62,10 @@ const STATE = {
   showScrollTop: false,          // 스크롤탑 버튼 표시 여부 (SCROLL_TOP_THRESHOLD 기준)
   projects: {
     status: "idle",              // "idle" | "loading" | "success" | "empty" | "error"
-    items: [],                   // 성공 시 GitHub 저장소 배열
+    items: [],                   // 성공 시 GitHub 저장소 배열 (필터와 무관하게 항상 전체 목록)
     username: "",                // 재시도 버튼이 다시 fetch할 때 사용
     message: "",                 // "error" 상태일 때 원인별로 다르게 보여줄 안내 문구
+    filter: "all",                // "all" | 특정 언어 문자열 — 언어별 필터 버튼 선택 상태
   },
   formErrors: { name: "", email: "", message: "" },
   formSuccess: "",
@@ -107,14 +108,46 @@ const renderScrollTopButton = () => {
   document.getElementById("scroll-top").classList.toggle("show", STATE.showScrollTop);
 };
 
+// [index.html 연동] <div id="projects-filters">. GitHub에서 받아온 저장소들의
+// language 값 중 중복을 제거해 "전체" + 언어별 버튼을 동적으로 만든다.
+// (요구사항: "프로젝트 내용을 확인한 후" 실제 존재하는 언어만 버튼으로 노출 —
+// 고정된 언어 목록을 미리 박아두지 않는다)
+const renderProjectFilters = (items, activeFilter) => {
+  const filtersEl = document.getElementById("projects-filters");
+
+  // map: repo 배열 → language 값만 추출, filter(Boolean): null/undefined(언어 미지정 저장소) 제거,
+  // Set: 중복 제거 → 배열로 다시 펼침
+  const languages = [...new Set(items.map((repo) => repo.language).filter(Boolean))];
+  const filters = ["all", ...languages];
+
+  filtersEl.innerHTML = filters
+    .map((lang) => `
+      <button
+        type="button"
+        class="filter-btn${lang === activeFilter ? " active" : ""}"
+        data-filter="${lang}"
+      >${lang === "all" ? "전체" : lang}</button>
+    `)
+    .join("");
+
+  // innerHTML로 새로 만든 버튼들이라 onclick 속성 대신
+  // 삽입 이후 addEventListener로 이벤트를 연결해야 규칙(onclick 금지)을 지킬 수 있다.
+  filtersEl.querySelectorAll(".filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => handleFilterClick(btn.dataset.filter));
+  });
+};
+
 const renderProjects = () => {
-  // [index.html 연동] <div id="projects-status">(로딩/에러/빈 상태 문구)와
-  // <div id="projects-list">(실제 카드)를 STATE.projects의 값에 맞춰 통째로 다시 그린다.
-  const { status, items, username, message } = STATE.projects;
+  // [index.html 연동] <div id="projects-filters">(언어 필터 버튼),
+  // <div id="projects-status">(로딩/에러/빈 상태 문구),
+  // <div id="projects-list">(실제 카드)를 STATE.projects의 값에 맞춰 다시 그린다.
+  const { status, items, username, message, filter } = STATE.projects;
+  const filtersEl = document.getElementById("projects-filters");
   const statusEl = document.getElementById("projects-status");
   const listEl = document.getElementById("projects-list");
 
   if (status === "loading") {
+    filtersEl.innerHTML = ""; // 아직 목록이 없으니 필터링할 대상도 없음
     statusEl.innerHTML = `<p class="loading">프로젝트를 불러오는 중...</p>`;
     listEl.innerHTML = "";
     return;
@@ -123,29 +156,44 @@ const renderProjects = () => {
   if (status === "error") {
     // message는 loadProjects()의 catch에서 원인(상태코드/네트워크/타임아웃)별로
     // 구체적으로 채워 넣는다. 화면에는 그 문구를 그대로 보여준다.
+    filtersEl.innerHTML = "";
     statusEl.innerHTML = `
       <p class="error">${message}</p>
       <button id="retry-btn" type="button">다시 시도</button>
     `;
     listEl.innerHTML = "";
-    // innerHTML로 새로 만든 버튼이라 onclick 속성 대신
-    // 삽입 이후 addEventListener로 이벤트를 연결해야 규칙(onclick 금지)을 지킬 수 있다.
     const handleRetryClick = () => loadProjects(username);
     document.getElementById("retry-btn").addEventListener("click", handleRetryClick);
     return;
   }
 
   if (status === "empty") {
+    filtersEl.innerHTML = "";
     statusEl.innerHTML = `<p class="empty">표시할 프로젝트가 없습니다.</p>`;
     listEl.innerHTML = "";
     return;
   }
 
   if (status === "success") {
+    renderProjectFilters(items, filter);
+
+    // array.filter(): 선택된 언어(filter)와 일치하는 저장소만 남긴다.
+    // "all"이면 거르지 않고 전체를 그대로 사용한다.
+    const filteredItems =
+      filter === "all" ? items : items.filter((repo) => repo.language === filter);
+
+    if (filteredItems.length === 0) {
+      // 언어는 있지만(버튼도 있지만) 그 언어로 필터링하면 결과가 0개인 경우
+      // (이론상 버튼 생성 로직상 발생하지 않지만, 안전하게 빈 상태를 보여준다)
+      statusEl.innerHTML = `<p class="empty">해당 언어의 프로젝트가 없습니다.</p>`;
+      listEl.innerHTML = "";
+      return;
+    }
+
     statusEl.innerHTML = "";
     // map: repo 객체 배열 → 카드 HTML 문자열 배열로 변환 (템플릿 리터럴 사용)
     // 구조분해 할당으로 필요한 필드만 꺼내 쓴다.
-    listEl.innerHTML = items
+    listEl.innerHTML = filteredItems
       .map(({ name, description, html_url, language, stargazers_count }) => `
         <article class="project-card reveal">
           <h3>${name}</h3>
@@ -166,8 +214,16 @@ const renderProjects = () => {
   }
 
   // status === "idle": 아직 fetch를 시작하기 전(초기값) — 아무것도 표시하지 않는다.
+  filtersEl.innerHTML = "";
   statusEl.innerHTML = "";
   listEl.innerHTML = "";
+};
+
+// 필터 버튼 클릭(이벤트) → STATE.projects.filter 변경(상태) → renderProjects()가
+// #projects-list를 다시 그린다(렌더링). fetch를 다시 하지 않고 이미 받아둔
+// STATE.projects.items를 array.filter()로 걸러내기만 한다.
+const handleFilterClick = (language) => {
+  setState({ projects: { ...STATE.projects, filter: language } });
 };
 
 const renderFormErrors = () => {
@@ -243,7 +299,9 @@ const getGitHubErrorMessage = (status) => {
 };
 
 const loadProjects = async (username) => {
-  setState({ projects: { status: "loading", items: [], username, message: "" } });
+  // 다시 불러올 때마다 이전에 선택돼 있던 언어 필터는 초기화한다(filter: "all") —
+  // 새로 받아온 목록 기준으로 필터 버튼도 다시 만들어지기 때문.
+  setState({ projects: { status: "loading", items: [], username, message: "", filter: "all" } });
 
   try {
     const res = await fetchWithTimeout(
@@ -261,11 +319,13 @@ const loadProjects = async (username) => {
     const ownRepos = repos.filter((repo) => !repo.fork);
 
     if (ownRepos.length === 0) {
-      setState({ projects: { status: "empty", items: [], username, message: "" } });
+      setState({ projects: { status: "empty", items: [], username, message: "", filter: "all" } });
       return;
     }
 
-    setState({ projects: { status: "success", items: ownRepos, username, message: "" } });
+    setState({
+      projects: { status: "success", items: ownRepos, username, message: "", filter: "all" },
+    });
   } catch (error) {
     console.error(error);
 
@@ -280,7 +340,7 @@ const loadProjects = async (username) => {
       message = "네트워크 연결을 확인해주세요.";
     }
 
-    setState({ projects: { status: "error", items: [], username, message } });
+    setState({ projects: { status: "error", items: [], username, message, filter: "all" } });
   }
 };
 

@@ -151,6 +151,15 @@
     <section id="projects" class="reveal">
       <h2>프로젝트</h2>
       <!--
+        [HTML ↔ JS 대응] id="projects-filters" → js의 renderProjectFilters()가
+        GitHub에서 받아온 저장소들의 language 값 중 중복을 제거해 "전체" + 언어별 버튼을
+        동적으로 만들어 넣는다. 처음엔 데이터가 없으니 비어 있고, 로딩/에러/빈 상태에서는
+        버튼 자체가 없다(필터링할 목록이 없으므로).
+        [HTML ↔ CSS 대응] class="filters"는 #skills-list와 같은 flex-wrap 가로 나열
+        패턴을 재사용해 버튼이 많아지면 자동으로 다음 줄로 넘어가게 한다.
+      -->
+      <div id="projects-filters" class="filters"></div>
+      <!--
         [HTML ↔ JS 대응] id="projects-status" → js의 loadProjects()가 fetch 상태에 따라
         setState({ projects: {...} })로 STATE.projects.status를 바꾸고, renderProjects()가
         이 div의 innerHTML을 통째로 교체한다: 로딩 중엔 "로딩 중..." 문구,

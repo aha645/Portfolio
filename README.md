@@ -60,6 +60,7 @@ Portfolio/
 - **부드러운 스크롤**: 네비게이션 클릭 시 `scrollIntoView({ behavior: 'smooth' })`로 해당 섹션 이동
 - **스크롤 탑 버튼**: 300px 이상 스크롤 시 표시, 클릭 시 최상단으로 이동
 - **Projects 섹션**: GitHub API에서 저장소 목록을 가져와 로딩 → 성공/빈 상태/에러(재시도 버튼 포함) 순으로 렌더링. 요청이 8초(`FETCH_TIMEOUT_MS`) 안에 끝나지 않으면 자동 취소하고, 상태 코드(403/404/5xx)·네트워크 단절·타임아웃을 구분한 안내 메시지를 보여준다
+- **프로젝트 언어 필터**: 저장소를 불러온 뒤 실제 존재하는 언어만 골라 "전체" + 언어별 버튼을 동적으로 생성(고정된 언어 목록 아님). 버튼 클릭 시 API를 다시 부르지 않고, 이미 받아둔 목록을 `array.filter()`로 걸러 즉시 다시 그린다
 - **문의 폼 유효성 검사**: 이름/이메일/메시지 필수 입력 검증 + 이메일 형식 검증, 필드 근처에 에러 메시지 표시, 통과 시 성공 메시지 표시
 
 ## 상태(state) → 렌더링 흐름 (React의 상태-렌더링 기초 연습)
@@ -71,7 +72,8 @@ DOM을 직접 여기저기서 건드리는 대신 **`setState(patch)` → `STATE
 ```js
 const STATE = {
   theme, navOpen, scrolled, showScrollTop,
-  projects: { status, items, username, message }, // message: 에러 상태일 때 원인별 안내 문구
+  projects: { status, items, username, message, filter }, // message: 에러 원인별 안내 문구
+                                                            // filter: "all" | 선택된 언어
   formErrors, formSuccess,
 };
 ```
@@ -79,8 +81,9 @@ const STATE = {
 1. **다크 모드**: 버튼 클릭(이벤트) → `setState({ theme })`로 `STATE.theme` 변경(상태) → `renderTheme()`이 `data-theme` 속성/버튼 아이콘 갱신 → CSS 변수로 전체 배색 변경(렌더링). 초기값은 `getInitialTheme()`이 `localStorage` → `prefers-color-scheme` 순으로 결정
 2. **햄버거 메뉴**: 버튼 클릭 또는 열린 상태에서 `Esc`(이벤트) → `setState({ navOpen })`로 열림/닫힘 상태 변경 → `renderNav()`가 `.active` 클래스와 `aria-expanded`를 갱신(렌더링)
 3. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → `loadProjects()`가 `setState({ projects: {...} })`로 로딩/성공/에러(상태코드·네트워크·타임아웃별 `message` 포함)/빈 상태 변경(상태) → `renderProjects()`가 `#projects-list`/`#projects-status` innerHTML 교체(렌더링)
-4. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
-5. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
+4. **언어 필터**: 필터 버튼 클릭(이벤트) → `handleFilterClick()`이 `setState({ projects: { ...STATE.projects, filter } })`로 `STATE.projects.filter` 변경(상태) → `renderProjects()`가 이미 받아둔 `items`를 `array.filter()`로 걸러 `#projects-list`를 다시 그림(렌더링). API를 다시 호출하지 않는다
+5. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
+6. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
 
 `setState`는 바뀐 키에 매핑된 `render*()` 함수만 실행합니다(`RENDERERS` 매핑 테이블).
 그래서 스크롤처럼 자주 발생하는 이벤트가 프로젝트 카드나 폼처럼 무관한 영역까지

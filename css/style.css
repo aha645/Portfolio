@@ -371,6 +371,55 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
 }
 
 /* ============================================
+   11-2. Projects 언어 필터 버튼
+   [HTML 대응] index.html의 <div id="projects-filters">.
+   [JS 연동] js의 renderProjectFilters()가 GitHub 응답에서 실제 존재하는 언어만
+   뽑아 "전체" + 언어별 <button class="filter-btn">을 이 안에 동적으로 채운다.
+   → #skills-list와 같은 flex-wrap 가로 나열 패턴을 재사용해 버튼이 많아지면
+     자동으로 다음 줄로 넘어간다.
+   ============================================ */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+/* 필터 버튼이 없는 상태(로딩/에러/빈 상태)에서는 이 영역이 차지하는 여백도 없앤다. */
+.filters:empty {
+  display: none;
+  margin-bottom: 0;
+}
+
+/* [CSS 단독이지만 셀렉터에 주의] `#projects-filters .filter-btn`처럼 id를 포함시켜
+   specificity를 높인 이유: 상단의 전역 `button:not(.hamburger):not(.theme-toggle)
+   :not(.scroll-top)` 규칙(파란 배경 버튼)이 이 필터 버튼에도 그대로 적용되면
+   전부 파란 버튼이 되어 "선택된 것 vs 아닌 것"을 구분할 수 없기 때문에,
+   더 구체적인 선택자로 필터 버튼 전용 스타일을 덮어쓴다. */
+#projects-filters .filter-btn {
+  background-color: var(--color-card);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition),
+    border-color var(--transition);
+}
+
+#projects-filters .filter-btn:hover {
+  border-color: var(--color-primary);
+}
+
+/* [JS 연동] js가 현재 선택된 언어(STATE.projects.filter)와 일치하는 버튼에만
+   class="active"를 붙여서 다시 그린다 — "지금 무엇을 보고 있는지"를 시각적으로 표시. */
+#projects-filters .filter-btn.active {
+  background-color: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* ============================================
    11-1. Projects 로딩 / 에러 / 빈 상태
    [HTML 대응] index.html의 <div id="projects-status" class="status-msg">.
    [JS 연동] js의 renderStatus()가 fetch 상태에 따라 이 영역의 innerHTML을

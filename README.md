@@ -51,10 +51,12 @@ Portfolio/
 | 스크롤 탑 버튼이 나타나는 스크롤 위치 | `300px` | `SCROLL_TOP_THRESHOLD` |
 | 스크롤 등장 애니메이션(IntersectionObserver) 임계값 | `0.2` (20% 노출 시 실행) | `REVEAL_THRESHOLD` |
 | GitHub API 요청 타임아웃 | `8000ms` | `FETCH_TIMEOUT_MS` |
+| Hero 타이핑 효과 속도 | 글자당 `80ms` | `TYPING_SPEED_MS` |
 | 반응형 브레이크포인트 | `768px`(태블릿), `1024px`(데스크톱) | `css/style.css` `@media` |
 
 ## 인터랙션 목록
 
+- **Hero 타이핑 효과**: 인사말이 한 글자씩 타자기처럼 나타나고, 타이핑 중에는 깜빡이는 커서(`|`)가 표시된다. 시스템의 "동작 줄이기"(`prefers-reduced-motion`) 설정이 켜져 있으면 애니메이션 없이 전체 문구를 즉시 표시한다
 - **다크 모드 토글**: 우측 상단 버튼 클릭 → `html[data-theme]` 속성 전환 → `localStorage`에 저장되어 새로고침 후에도 유지. 저장된 값이 없는 첫 방문 시에는 OS의 `prefers-color-scheme`(다크 모드 선호 여부)를 확인해 초기 테마를 정한다 (`getInitialTheme()`)
 - **햄버거 메뉴**: 768px 미만 화면에서 메뉴 버튼 클릭 시 `classList.toggle('active')`로 열림/닫힘. 메뉴가 열린 상태에서 `Esc` 키를 누르면 닫히고 포커스가 햄버거 버튼으로 돌아간다 (키보드 접근성)
 - **부드러운 스크롤**: 네비게이션 클릭 시 `scrollIntoView({ behavior: 'smooth' })`로 해당 섹션 이동

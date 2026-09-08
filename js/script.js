@@ -16,7 +16,39 @@ const NAV_SCROLL_THRESHOLD = 60;   // 이 값(px) 이상 스크롤하면 header�
 const SCROLL_TOP_THRESHOLD = 300;  // 이 값(px) 이상 스크롤하면 맨 위로 버튼 표시
 const REVEAL_THRESHOLD = 0.2;      // IntersectionObserver: 요소가 20% 보이면 애니메이션 실행
 const FETCH_TIMEOUT_MS = 8000;     // GitHub API 응답을 이 시간(ms) 이상 기다리지 않음
+const TYPING_SPEED_MS = 80;        // Hero 타이핑 효과: 한 글자당 이 시간(ms)만큼 지연
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// [index.html 연동] <h1 id="hero-greeting">에 문구를 한 글자씩 타이핑하듯 채워 넣는다.
+// 스크롤 애니메이션(revealObserver)과 마찬가지로 "한 번 실행되고 끝나는" 연출이라
+// STATE로 관리하지 않고 독립적인 함수로 처리한다 (매 글자마다 setState를 거치면
+// 불필요하게 무거워질 뿐 아니라, 이 텍스트는 애초에 사용자 인터랙션으로 바뀌는
+// 값이 아니라서 "다시 그릴 필요가 있는 상태"에 해당하지 않는다).
+const typeText = (el, text, speed = TYPING_SPEED_MS) => {
+  // [접근성] 화면 움직임에 민감한 사용자를 위한 시스템 설정을 존중해,
+  // 이 설정이 켜져 있으면 애니메이션 없이 텍스트를 바로 전부 보여준다.
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion) {
+    el.textContent = text;
+    return;
+  }
+
+  el.textContent = "";
+  // css `#hero-greeting.typing::after`가 이 클래스를 보고 깜빡이는 커서(|)를 그려준다.
+  el.classList.add("typing");
+
+  let i = 0;
+  const step = () => {
+    if (i < text.length) {
+      el.textContent += text[i];
+      i += 1;
+      setTimeout(step, speed);
+    } else {
+      el.classList.remove("typing"); // 다 타이핑되면 커서를 없애 완성된 문장처럼 보이게 함
+    }
+  };
+  step();
+};
 
 // [index.html 연동] index.html에는 class="reveal"이 붙은 <section> 5개
 // (hero/about/skills/projects/contact)와, GitHub API 응답으로 나중에 생기는
@@ -505,7 +537,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 구조분해 할당으로 필요한 값만 바로 꺼내 쓴다.
   const { hero, about, skills, footer, github } = data;
 
-  document.getElementById("hero-greeting").textContent = hero.greeting;
+  typeText(document.getElementById("hero-greeting"), hero.greeting);
   const cta = document.getElementById("hero-cta");
   cta.textContent = hero.ctaText;
   cta.href = hero.ctaLink;

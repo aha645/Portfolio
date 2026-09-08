@@ -260,6 +260,23 @@ section {
   padding: var(--space-lg) var(--space-md);
 }
 
+/* [HTML 대응] index.html의 <h1 id="hero-greeting">.
+   [JS 연동] js의 typeText()가 한 글자씩 textContent를 채우는 동안 이 요소에
+   class="typing"을 붙여둔다. 그동안 ::after 가상요소로 "|" 커서를 그려
+   타자기처럼 깜빡이게 하고, 타이핑이 끝나면 js가 클래스를 떼어 커서도 사라진다. */
+#hero-greeting.typing::after {
+  content: "|";
+  margin-left: 2px;
+  animation: blink-cursor 0.8s step-end infinite;
+}
+
+/* [CSS 단독] 순수 CSS 키프레임 애니메이션 — 0.4초마다 커서를 보였다 지웠다 반복한다. */
+@keyframes blink-cursor {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* [HTML 대응] #hero-cta는 index.html의 <a id="hero-cta">, `button:not(...)`은
    #retry-btn(에러 재시도), 문의 폼의 submit 버튼처럼 클래스가 없는 일반 <button>들.
    [CSS 단독] 이 모양/hover 효과는 JS 상태와 무관하게 항상 동일하게 적용된다.

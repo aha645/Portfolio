@@ -15,6 +15,7 @@ const THEME_KEY = "portfolio-theme"; // localStorage에 저장할 때 쓰는 키
 const NAV_SCROLL_THRESHOLD = 60;   // 이 값(px) 이상 스크롤하면 header에 .scrolled 부여
 const SCROLL_TOP_THRESHOLD = 300;  // 이 값(px) 이상 스크롤하면 맨 위로 버튼 표시
 const REVEAL_THRESHOLD = 0.2;      // IntersectionObserver: 요소가 20% 보이면 애니메이션 실행
+const FETCH_TIMEOUT_MS = 8000;     // GitHub API 응답을 이 시간(ms) 이상 기다리지 않음
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // [index.html 연동] index.html에는 class="reveal"이 붙은 <section> 5개
@@ -63,6 +64,7 @@ const STATE = {
     status: "idle",              // "idle" | "loading" | "success" | "empty" | "error"
     items: [],                   // 성공 시 GitHub 저장소 배열
     username: "",                // 재시도 버튼이 다시 fetch할 때 사용
+    message: "",                 // "error" 상태일 때 원인별로 다르게 보여줄 안내 문구
   },
   formErrors: { name: "", email: "", message: "" },
   formSuccess: "",
@@ -108,7 +110,7 @@ const renderScrollTopButton = () => {
 const renderProjects = () => {
   // [index.html 연동] <div id="projects-status">(로딩/에러/빈 상태 문구)와
   // <div id="projects-list">(실제 카드)를 STATE.projects의 값에 맞춰 통째로 다시 그린다.
-  const { status, items, username } = STATE.projects;
+  const { status, items, username, message } = STATE.projects;
   const statusEl = document.getElementById("projects-status");
   const listEl = document.getElementById("projects-list");
 
@@ -119,15 +121,17 @@ const renderProjects = () => {
   }
 
   if (status === "error") {
+    // message는 loadProjects()의 catch에서 원인(상태코드/네트워크/타임아웃)별로
+    // 구체적으로 채워 넣는다. 화면에는 그 문구를 그대로 보여준다.
     statusEl.innerHTML = `
-      <p class="error">프로젝트를 불러올 수 없습니다.</p>
+      <p class="error">${message}</p>
       <button id="retry-btn" type="button">다시 시도</button>
     `;
     listEl.innerHTML = "";
     // innerHTML로 새로 만든 버튼이라 onclick 속성 대신
     // 삽입 이후 addEventListener로 이벤트를 연결해야 규칙(onclick 금지)을 지킬 수 있다.
-    // 클릭하면 loadProjects()를 다시 호출해 STATE.projects.status를 "loading"부터 재시작한다.
-    document.getElementById("retry-btn").addEventListener("click", () => loadProjects(username));
+    const handleRetryClick = () => loadProjects(username);
+    document.getElementById("retry-btn").addEventListener("click", handleRetryClick);
     return;
   }
 
@@ -216,15 +220,39 @@ const setState = (patch) => {
 //    → setState로 STATE.projects 변경(로딩→성공/빈/에러)
 //    → renderProjects()가 #projects-status, #projects-list를 갱신
 // ============================================================
+// fetch에는 자체 타임아웃이 없다. AbortController로 일정 시간(FETCH_TIMEOUT_MS)
+// 안에 응답이 오지 않으면 요청을 강제로 취소해, 응답이 느린 네트워크에서
+// "로딩 중..." 상태로 무한정 멈춰 있는 것을 방지한다.
+const fetchWithTimeout = async (url, timeoutMs = FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId); // 응답이 제때 왔다면 예약해둔 취소를 취소한다
+  }
+};
+
+// HTTP 상태 코드별로 사용자에게 보여줄 메시지를 구체화한다.
+// (모든 실패를 "프로젝트를 불러올 수 없습니다"로 뭉뚱그리지 않기 위함)
+const getGitHubErrorMessage = (status) => {
+  if (status === 403) return "GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.";
+  if (status === 404) return "해당 GitHub 사용자를 찾을 수 없습니다.";
+  if (status >= 500) return "GitHub 서버에 일시적인 문제가 발생했습니다.";
+  return `프로젝트를 불러올 수 없습니다. (오류 코드: ${status})`;
+};
+
 const loadProjects = async (username) => {
-  setState({ projects: { status: "loading", items: [], username } });
+  setState({ projects: { status: "loading", items: [], username, message: "" } });
 
   try {
-    const res = await fetch(`https://api.github.com/users/${username}/repos?sort=updated`);
+    const res = await fetchWithTimeout(
+      `https://api.github.com/users/${username}/repos?sort=updated`
+    );
 
     // fetch는 404/500이어도 예외를 던지지 않으므로 res.ok를 직접 확인해야 한다.
     if (!res.ok) {
-      throw new Error(`GitHub API 오류: ${res.status}`);
+      throw new Error(getGitHubErrorMessage(res.status));
     }
 
     const repos = await res.json();
@@ -233,14 +261,26 @@ const loadProjects = async (username) => {
     const ownRepos = repos.filter((repo) => !repo.fork);
 
     if (ownRepos.length === 0) {
-      setState({ projects: { status: "empty", items: [], username } });
+      setState({ projects: { status: "empty", items: [], username, message: "" } });
       return;
     }
 
-    setState({ projects: { status: "success", items: ownRepos, username } });
+    setState({ projects: { status: "success", items: ownRepos, username, message: "" } });
   } catch (error) {
     console.error(error);
-    setState({ projects: { status: "error", items: [], username } });
+
+    // 에러 종류에 따라 사용자에게 보여줄 메시지를 구분한다.
+    //  - AbortError: fetchWithTimeout이 타임아웃으로 강제 취소한 경우
+    //  - TypeError: 오프라인 등 네트워크 자체가 실패한 경우 (fetch가 이 타입으로 던짐)
+    //  - 그 외: 위에서 getGitHubErrorMessage()로 만든 상태코드 기반 메시지(error.message)
+    let message = error.message || "프로젝트를 불러올 수 없습니다.";
+    if (error.name === "AbortError") {
+      message = "요청 시간이 초과되었습니다. 네트워크 상태를 확인 후 다시 시도해주세요.";
+    } else if (error instanceof TypeError) {
+      message = "네트워크 연결을 확인해주세요.";
+    }
+
+    setState({ projects: { status: "error", items: [], username, message } });
   }
 };
 
@@ -269,16 +309,12 @@ const initContactForm = () => {
     return message === "";
   };
 
-  // [index.html 연동] 각 <input>/<textarea>에 input 이벤트를 건다.
-  // 타이핑하는 동안 실시간으로 에러 상태를 갱신해
-  // "제출을 눌러야만 에러를 아는" 불편함을 줄인다.
-  fieldNames.forEach((field) => {
-    document.getElementById(field).addEventListener("input", () => validateAndSetField(field));
-  });
+  // 필드 하나의 input 이벤트를 처리하는 핸들러를 필드별로 만들어 반환한다.
+  // (익명 콜백 대신 이름 붙은 함수로 분리해 각 필드가 무엇을 하는 핸들러인지
+  // 드러나게 하고, 필요하면 다른 곳에서도 재사용할 수 있게 한다)
+  const makeFieldInputHandler = (field) => () => validateAndSetField(field);
 
-  // [index.html 연동] <form id="contact-form">의 submit 이벤트
-  // (버튼의 onclick이 아니라 폼의 submit을 듣는 이유: Enter 키 제출도 함께 잡기 위함).
-  form.addEventListener("submit", (event) => {
+  const handleFormSubmit = (event) => {
     event.preventDefault(); // 폼의 기본 제출(페이지 새로고침) 방지
 
     // map + every: 모든 필드를 검증하고, 하나라도 실패하면 전체를 실패로 처리
@@ -292,12 +328,84 @@ const initContactForm = () => {
 
     setState({ formSuccess: "문의가 성공적으로 접수되었습니다. 감사합니다!" });
     form.reset();
+  };
+
+  // [index.html 연동] 각 <input>/<textarea>에 input 이벤트를 건다.
+  // 타이핑하는 동안 실시간으로 에러 상태를 갱신해
+  // "제출을 눌러야만 에러를 아는" 불편함을 줄인다.
+  fieldNames.forEach((field) => {
+    document.getElementById(field).addEventListener("input", makeFieldInputHandler(field));
   });
+
+  // [index.html 연동] <form id="contact-form">의 submit 이벤트
+  // (버튼의 onclick이 아니라 폼의 submit을 듣는 이유: Enter 키 제출도 함께 잡기 위함).
+  form.addEventListener("submit", handleFormSubmit);
 };
 
 // ============================================================
 // 6. 초기화
 // ============================================================
+// 저장된 테마가 없을 때(첫 방문) 화면을 무엇으로 시작할지 결정한다.
+// 1순위: localStorage에 사용자가 이전에 직접 고른 값
+// 2순위: OS/브라우저의 "어두운 화면" 선호도(prefers-color-scheme) — 시스템이 다크모드면
+//        굳이 밝은 화면으로 시작해 사용자가 매번 토글을 누르게 하지 않기 위함
+// 3순위: 위 둘 다 없으면 기본값 "light"
+const getInitialTheme = () => {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "dark" || saved === "light") {
+    return saved;
+  }
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  return prefersDark ? "dark" : "light";
+};
+
+// 아래는 각 인터랙션의 이벤트 핸들러를 이름 붙은 함수로 분리한 것이다.
+// addEventListener에 매번 새 익명 함수를 넘기는 대신 이렇게 분리해두면,
+// 핸들러 이름만 보고도 무슨 동작인지 알 수 있고 필요하면 다른 곳에서도 재사용할 수 있다.
+const handleThemeToggleClick = () => {
+  const next = STATE.theme === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, next); // 새로고침 후에도 유지되어야 하므로 저장
+  setState({ theme: next });
+};
+
+const handleHamburgerClick = () => {
+  setState({ navOpen: !STATE.navOpen });
+};
+
+// [index.html 연동] <ul id="nav-menu"> 안의 5개 <a class="nav-link" href="#섹션id">
+// 클릭을 처리한다. class="nav-link"는 CSS가 아니라 이 핸들러를 연결하기 위한 훅이다.
+const handleNavLinkClick = (event) => {
+  event.preventDefault(); // <a href="#id">의 기본 동작(순간 이동) 방지
+  const target = document.querySelector(event.currentTarget.getAttribute("href"));
+  target?.scrollIntoView({ behavior: "smooth" });
+  setState({ navOpen: false }); // 모바일에서 링크 클릭 후 드롭다운 자동 닫힘
+};
+
+const handleScroll = () => {
+  const scrolled = window.scrollY > NAV_SCROLL_THRESHOLD;
+  const showScrollTop = window.scrollY > SCROLL_TOP_THRESHOLD;
+  // 값이 실제로 바뀔 때만 setState를 호출한다 — 스크롤 이벤트는 초당 수십 번씩
+  // 발생하는데, 그때마다 render를 실행하면 낭비이기 때문에 "경계를 막 넘은 순간"에만
+  // 상태를 갱신한다.
+  if (scrolled !== STATE.scrolled || showScrollTop !== STATE.showScrollTop) {
+    setState({ scrolled, showScrollTop });
+  }
+};
+
+const handleScrollTopClick = () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+// [접근성] 햄버거 메뉴가 열려 있을 때 Esc 키를 누르면 메뉴를 닫고,
+// 포커스를 다시 햄버거 버튼으로 돌려준다. 마우스 없이 키보드만으로 탐색하는
+// 사용자가 메뉴를 열었다가 마우스 클릭 없이도 빠져나올 수 있게 하기 위함이다.
+const handleKeydown = (event) => {
+  if (event.key === "Escape" && STATE.navOpen) {
+    setState({ navOpen: false });
+    document.getElementById("hamburger").focus();
+  }
+};
+
 // script.js는 <head>에서 defer로 로드되므로 DOM 파싱은 이미 끝나 있지만,
 // 아래처럼 DOMContentLoaded로 한 번 더 감싸도 안전하다 — defer 스크립트는
 // DOMContentLoaded 이벤트가 "발생하기 직전"에 실행되므로 이 리스너는
@@ -306,47 +414,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- 다크모드 초기화 + 토글 이벤트 연결 (상태 흐름 예시 ③) ----
   // 이벤트(버튼 클릭) → setState로 STATE.theme 변경 → renderTheme()이 <html>의
   // data-theme 속성과 버튼 아이콘을 갱신 → css [data-theme="dark"]가 전체 배색을 바꾼다.
-  const savedTheme = localStorage.getItem(THEME_KEY);
-  setState({ theme: savedTheme === "dark" ? "dark" : "light" });
+  setState({ theme: getInitialTheme() });
+  document.getElementById("theme-toggle").addEventListener("click", handleThemeToggleClick);
 
-  document.getElementById("theme-toggle").addEventListener("click", () => {
-    const next = STATE.theme === "dark" ? "light" : "dark";
-    localStorage.setItem(THEME_KEY, next); // 새로고침 후에도 유지되어야 하므로 저장
-    setState({ theme: next });
-  });
-
-  // ---- 햄버거 메뉴 토글 ----
-  document.getElementById("hamburger").addEventListener("click", () => {
-    setState({ navOpen: !STATE.navOpen });
-  });
+  // ---- 햄버거 메뉴 토글 (+ Esc로 닫기) ----
+  document.getElementById("hamburger").addEventListener("click", handleHamburgerClick);
+  document.addEventListener("keydown", handleKeydown);
 
   // ---- 부드러운 스크롤 + 메뉴 클릭 시 자동 닫힘 ----
-  // [index.html 연동] <ul id="nav-menu"> 안의 5개 <a class="nav-link" href="#섹션id">를
-  // 전부 찾는다. class="nav-link"는 CSS가 아니라 이 querySelectorAll을 위한 훅이다.
   document.querySelectorAll(".nav-link").forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault(); // <a href="#id">의 기본 동작(순간 이동) 방지
-      const target = document.querySelector(link.getAttribute("href"));
-      target?.scrollIntoView({ behavior: "smooth" });
-      setState({ navOpen: false }); // 모바일에서 링크 클릭 후 드롭다운 자동 닫힘
-    });
+    link.addEventListener("click", handleNavLinkClick);
   });
 
   // ---- 스크롤 이벤트: 네비 배경 변경 + 스크롤탑 버튼 표시/숨김 ----
-  window.addEventListener("scroll", () => {
-    const scrolled = window.scrollY > NAV_SCROLL_THRESHOLD;
-    const showScrollTop = window.scrollY > SCROLL_TOP_THRESHOLD;
-    // 값이 실제로 바뀔 때만 setState를 호출한다 — 스크롤 이벤트는 초당 수십 번씩
-    // 발생하는데, 그때마다 render를 실행하면 낭비이기 때문에 "경계를 막 넘은 순간"에만
-    // 상태를 갱신한다.
-    if (scrolled !== STATE.scrolled || showScrollTop !== STATE.showScrollTop) {
-      setState({ scrolled, showScrollTop });
-    }
-  });
-
-  document.getElementById("scroll-top").addEventListener("click", () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
+  window.addEventListener("scroll", handleScroll);
+  document.getElementById("scroll-top").addEventListener("click", handleScrollTopClick);
 
   // ---- 스크롤 애니메이션 (Intersection Observer) ----
   // 지금 이 시점에 index.html에 이미 존재하는 5개의 <section class="reveal">을

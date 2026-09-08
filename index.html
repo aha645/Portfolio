@@ -121,11 +121,15 @@
         [HTML ↔ JS 대응] id="about-img"/"about-text" → js가 info.json의 about.image,
         about.imageAlt(의미있는 alt 속성), about.text 값을 각각 img.src/img.alt/
         p.textContent에 채운다.
+        [접근성] alt를 처음부터 비워두지 않고 "프로필 사진을 불러오는 중입니다"라는
+        기본값을 넣어둔다 — data/info.json을 fetch하는 짧은 시간 동안 스크린리더가
+        이 이미지를 만나도 빈 alt("이미지"라고만 읽거나 아예 건너뜀) 대신 지금 상황을
+        설명하는 문구를 읽어주기 위함. JS가 로드되면 즉시 실제 alt로 덮어쓴다.
         [HTML ↔ CSS 대응] #about-img는 CSS에서 width/height:150px + border-radius:50% +
         object-fit:cover가 적용되어, JS가 어떤 크기의 사진을 넣어도 항상 150px 정원(正圓)
         프로필 사진으로 잘려 보인다 (JS는 값만 넣고, 모양은 전적으로 CSS가 결정한다).
       -->
-      <img id="about-img" src="" alt="" />
+      <img id="about-img" src="" alt="프로필 사진을 불러오는 중입니다" />
       <p id="about-text"></p>
     </section>
 

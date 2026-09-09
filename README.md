@@ -22,7 +22,10 @@ HTML/CSS/JavaScript(순수 바닐라)로 제작한 반응형 포트폴리오 사
 
 - **HTML5**: 시맨틱 태그(`header`/`nav`/`main`/`section`/`article`/`footer`)
 - **CSS**: Flexbox, Grid, CSS 변수(Custom Properties) 등 모던 CSS 모듈 + `@media`/`transition`/`@keyframes`(CSS3)
-- **JavaScript (ES6+)**: `fetch`/`async-await`, `IntersectionObserver`, `localStorage`, `matchMedia`, 단일 `STATE` 객체 기반 상태 관리
+- **JavaScript (ES6+)**: 화살표 함수, 구조분해 할당, 템플릿 리터럴, `async`/`await`
+- **배열 메서드 (ES5+)**: `map`/`filter`/`forEach`
+- **Web API**: `fetch`, `IntersectionObserver`, `localStorage`, `matchMedia`
+- **아키텍처**: 단일 `STATE` 객체 기반 상태 관리
 - **GitHub REST API**: `GET /users/{username}/repos`
 - **EmailJS**: 문의 폼 실제 이메일 전송 (SMTP Server로 네이버 메일 연결)
 - **배포**: GitHub Pages

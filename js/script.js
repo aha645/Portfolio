@@ -403,17 +403,17 @@ const loadProjects = async (username) => {
 // EmailJS 설정 — 문의 폼 실제 전송
 //    emailjs.com 대시보드에서 발급받은 값으로 아래 세 상수를 본인 값으로 교체해야 한다.
 //
-//    이 프로젝트는 Gmail이 아니라 네이버 메일(likylove@naver.com)을 SMTP로 연결해 쓴다:
+//    이 프로젝트는 Gmail이 아니라 네이버 메일을 SMTP로 연결해 쓴다:
 //      1) 네이버 메일 로그인 → 환경설정 → POP3/IMAP 설정 → "SMTP 사용" 켜기
 //         (2단계 인증을 쓰면 별도로 "애플리케이션 비밀번호"를 발급해 그 값을 비밀번호로 사용)
 //      2) EmailJS 대시보드 → Email Services → Add New Service → **SMTP Server** 선택
 //           - SMTP Server: smtp.naver.com
 //           - Port: 587 (Security: STARTTLS) 또는 465 (Security: SSL/TLS)
-//           - Username: likylove@naver.com
+//           - Username: 본인의 네이버 메일 주소
 //           - Password: 위 1)에서 확인한 비밀번호
 //      3) Email Templates → Create New Template에서, 이 폼의 input name 속성과
 //         동일한 이름의 변수({{name}}, {{email}}, {{message}})로 본문을 작성하고,
-//         "To Email"은 likylove@naver.com, "Reply To"는 {{email}}로 설정
+//         "To Email"은 본인의 네이버 메일 주소, "Reply To"는 {{email}}로 설정
 //      4) 발급된 Service ID / Template ID, Account → General의 Public Key를 아래에 채운다
 // ============================================================
 const EMAILJS_PUBLIC_KEY = "n1fS48XnUB9-n_G3l";

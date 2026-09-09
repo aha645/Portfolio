@@ -6,17 +6,20 @@ HTML/CSS/JavaScript(순수 바닐라)만으로 제작한 1인 개발자 포트�
 
 ## 배포 URL
 
+- GitHub 저장소: https://github.com/aha645/Portfolio
 - GitHub Pages: https://aha645.github.io/Portfolio/
   (저장소 Settings → Pages에서 `main` 브랜치 `/ (root)`로 배포)
 
 ## 스크린샷
 
-> `images/screenshot-desktop.png`, `images/screenshot-mobile.png` 파일을 추가한 뒤
-> 아래 링크를 실제 이미지로 교체하세요.
+| 화면 | 데스크톱 (1024px 이상) | 모바일 (768px 미만) |
+|---|---|---|
+| 라이트 모드 | ![데스크톱 화면](images/screenshot-desktop.png) | ![모바일 화면](images/screenshot-mobile.png) |
+| 다크 모드 | ![데스크톱 다크모드 화면](images/screenshot-desktop-dark.png) | ![모바일 다크모드 화면](images/screenshot-mobile-dark.png) |
 
-| 데스크톱 | 모바일 |
-|---|---|
-| ![데스크톱 화면](images/screenshot-desktop.png) | ![모바일 화면](images/screenshot-mobile.png) |
+데스크톱 화면은 언어 필터 버튼과 문의 폼 전송 성공 상태를, 모바일 화면은 햄버거 메뉴와
+다크모드 토글 버튼이 노출되는 좁은 화면 레이아웃을, 다크모드 행은 `[data-theme="dark"]`
+전환 후의 전체 배색을 보여줍니다.
 
 ## 사용 기술
 
@@ -29,6 +32,28 @@ HTML/CSS/JavaScript(순수 바닐라)만으로 제작한 1인 개발자 포트�
 - **GitHub REST API**: `GET /users/{username}/repos`
 - **EmailJS**: 문의 폼 실제 이메일 전송 (SMTP Server 서비스로 네이버 메일 연결)
 - **배포**: GitHub Pages
+
+## Flexbox vs Grid 선택 기준
+
+두 레이아웃 모두 "요소를 나열한다"는 점은 같지만, 기준으로 삼은 원칙은 다음과 같습니다.
+
+- **Flexbox (1차원 레이아웃)**: 요소들을 **한 줄(가로) 또는 한 열(세로)** 로만 정렬하면 되고,
+  각 요소의 크기가 콘텐츠에 따라 유동적이어도 괜찮은 경우에 사용했습니다.
+- **Grid (2차원 레이아웃)**: 요소들이 **가로·세로 두 축 모두** 정확히 줄을 맞춰야 하고,
+  화면 너비에 따라 열 개수 자체가 바뀌어야 하는 경우에 사용했습니다.
+
+| 위치 | 선택 | 이유 |
+|---|---|---|
+| `nav`([css/style.css:98](css/style.css#L98)) | Flexbox | 로고와 메뉴를 한 줄에서 `justify-content: space-between`으로 양 끝에 배치하기만 하면 되는, 전형적인 1차원(가로 한 줄) 정렬 문제 |
+| `#skills-list`([css/style.css:339](css/style.css#L339)), `.filters`(언어 필터 버튼) | Flexbox + `flex-wrap: wrap` | 태그/배지처럼 개수와 너비가 들쭉날쭉한 아이템을 왼쪽부터 채우다가 자리가 없으면 다음 줄로 넘기기만 하면 됨 — 줄이 바뀌어도 위아래 아이템끼리 열을 맞출 필요가 없음 |
+| `#projects-list`([css/style.css:366](css/style.css#L366)) | Grid | 카드가 여러 줄에 걸쳐 배치될 때 **모든 행에서 같은 열 너비를 유지**해야 카드형 그리드처럼 보임. `flex-wrap`은 각 줄이 그 줄의 내용만 보고 독립적으로 크기를 잡기 때문에 줄마다 카드 폭이 미묘하게 달라질 수 있는데, Grid의 `grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))`는 열 자체를 명시적으로 정의해서 몇 번째 줄이든 카드 폭이 항상 같게 고정된다 |
+
+즉 "그냥 한 줄로 늘어놓고 넘치면 줄바꿈"이면 Flexbox, "여러 줄이 생겨도 카드처럼 행과 열이 격자로
+딱 맞아떨어져야 한다"면 Grid를 선택했습니다. `#projects-list`를 Flexbox로 만들어도 화면상
+비슷해 보일 수 있지만, 카드 개수가 홀수여서 마지막 줄에 카드가 하나만 남는 경우 Flexbox는
+그 카드가 남는 공간만큼 넓어지거나(`flex-grow` 여부에 따라) 폭이 달라지는 반면, Grid는
+`auto-fit`이 빈 열을 그대로 비워두어(`1fr`이 아니라 빈 트랙으로 처리) 카드 폭이 항상 일정하게
+유지됩니다.
 
 ## 폴더 구조
 
@@ -104,8 +129,9 @@ const STATE = {
 
 ## 문의 폼 실제 전송 설정 (EmailJS + 네이버 SMTP)
 
-이 프로젝트는 Formspree/EmailJS의 기본 Gmail 연동 대신, **네이버 메일(`likylove@naver.com`)을
-SMTP로 직접 연결**해서 문의 폼 제출 시 실제 이메일이 오도록 구성했습니다.
+문의 폼은 **EmailJS**를 통해 실제 이메일을 전송합니다. EmailJS에서 흔히 쓰는 Gmail 서비스(OAuth
+연동) 대신, **SMTP Server 서비스로 네이버 메일(`smtp.naver.com`)을 직접 연결**해서
+문의 폼 제출 시 관리자 메일함으로 실제 이메일이 도착하도록 구성했습니다.
 
 1. **네이버 메일에서 SMTP 켜기**: 네이버 메일 로그인 → 환경설정 → POP3/IMAP 설정 → "SMTP 사용" 활성화
    (2단계 인증을 쓰는 계정이면 네이버 보안설정에서 별도의 "애플리케이션 비밀번호"를 발급받아
@@ -114,11 +140,11 @@ SMTP로 직접 연결**해서 문의 폼 제출 시 실제 이메일이 오도�
    Email Services → Add New Service → **SMTP Server** 선택 후 입력
    - SMTP Server: `smtp.naver.com`
    - Port: `587`(Security: STARTTLS) 또는 `465`(Security: SSL/TLS)
-   - Username: `likylove@naver.com`
+   - Username: 본인의 네이버 메일 주소
    - Password: 1번에서 확인한 비밀번호
 3. **템플릿 작성**: Email Templates → Create New Template. 이 폼의 `<input name="...">`과
    동일한 이름의 변수를 그대로 사용합니다 (`{{name}}`, `{{email}}`, `{{message}}`).
-   - To Email: `likylove@naver.com`
+   - To Email: 본인의 네이버 메일 주소
    - Reply To: `{{email}}` (문의자에게 바로 답장할 수 있도록)
 4. **키 발급**: 생성된 **Service ID**, **Template ID**, Account → General의 **Public Key**를
    확인해 [js/script.js](js/script.js) 상단의 세 상수에 채워 넣습니다.

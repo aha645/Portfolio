@@ -28,7 +28,7 @@
 /* ============================================
    2. 다크 모드 변수 ([data-theme="dark"])
    [JS 연동] index.html의 <html> 태그는 원래 data-theme 속성이 없다.
-   js/script.js의 applyTheme()이 #theme-toggle 버튼 클릭 시
+   js/script.js의 renderTheme()이 #theme-toggle 버튼 클릭(→ setState({ theme })) 시
    document.documentElement.setAttribute('data-theme', 'dark' | 'light')를
    실행해야만 이 규칙이 켜진다. CSS는 "속성이 있으면 변수를 바꾼다"까지만 담당하고,
    "언제 속성을 붙일지"는 전적으로 JS의 몫이다.
@@ -455,12 +455,12 @@ button:disabled:hover {
 /* ============================================
    11-1. Projects 로딩 / 에러 / 빈 상태
    [HTML 대응] index.html의 <div id="projects-status" class="status-msg">.
-   [JS 연동] js의 renderStatus()가 fetch 상태에 따라 이 영역의 innerHTML을
+   [JS 연동] js의 renderProjects()가 STATE.projects.status에 따라 이 영역의 innerHTML을
    <p class="loading">/<p class="error">/<p class="empty">로 바꿔치기하거나,
    성공 시에는 빈 문자열("")을 넣는다.
    ============================================ */
 /* [CSS 단독이지만 JS가 만드는 상태를 활용] :empty 가상클래스는 "자식 노드가 없을 때"를
-   뜻한다. renderStatus("")로 내용을 비우는 순간(JS 성공 상태) 이 규칙이 자동으로
+   뜻한다. renderProjects()가 성공 상태에서 이 영역을 ""로 비우는 순간 이 규칙이 자동으로
    켜져서 영역 전체가 사라진다 — JS가 display를 직접 조작하지 않아도 되는 이유. */
 .status-msg:empty {
   display: none; /* 정상적으로 카드가 보일 때는 상태 영역을 아예 숨김 */
@@ -471,14 +471,14 @@ button:disabled:hover {
   padding: var(--space-md);
 }
 
-/* [HTML 대응] renderStatus()가 삽입하는 <p class="error">.
+/* [HTML 대응] renderProjects()가 삽입하는 <p class="error">.
    `.status-msg .error`는 후손 선택자라서, 부모(#projects-status)가 항상 갖고 있는
    class="status-msg"와 자식 <p class="error">가 만나야 매치된다. */
 .status-msg .error {
   color: #e5484d;
 }
 
-/* [HTML 대응] renderStatus()가 삽입하는 <p class="loading">.
+/* [HTML 대응] renderProjects()가 삽입하는 <p class="loading">.
    로딩 스피너: 별도 이미지 없이 border 회전만으로 구현 (아래 @keyframes spin과 짝) */
 .status-msg .loading::before {
   content: "";
@@ -499,7 +499,7 @@ button:disabled:hover {
   to { transform: rotate(360deg); }
 }
 
-/* [HTML 대응] 에러 상태일 때만 js가 renderStatus()로 만들어 삽입하는
+/* [HTML 대응] 에러 상태일 때만 js가 renderProjects()로 만들어 삽입하는
    <button id="retry-btn">. 평소에는 DOM에 존재하지 않는다. */
 #retry-btn {
   margin-top: var(--space-sm);
@@ -553,8 +553,9 @@ textarea.invalid {
   min-height: 1em; /* 메시지가 없을 때도 높이를 유지해 레이아웃이 덜컹거리지 않게 함 */
 }
 
-/* [HTML 대응] index.html의 <p id="form-success" class="success-message">.
-   [JS 연동] 폼 검증을 모두 통과했을 때만 js가 이 안에 문구를 채운다. */
+/* [HTML 대응] index.html의 <p id="form-status">.
+   [JS 연동] renderFormStatus()가 STATE.formStatus === "success"일 때 이 className을
+   "success-message"로 지정한다(에러일 땐 .error-message로 교체). */
 .success-message {
   color: #2f9e44;
   font-weight: bold;

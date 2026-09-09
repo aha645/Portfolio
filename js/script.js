@@ -19,6 +19,15 @@ const FETCH_TIMEOUT_MS = 8000;     // GitHub API 응답을 이 시간(ms) 이상
 const TYPING_SPEED_MS = 80;        // Hero 타이핑 효과: 한 글자당 이 시간(ms)만큼 지연
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// [보안] GitHub API가 돌려주는 저장소 이름/설명/언어/URL은 "우리가 통제할 수 없는 외부 문자열"이다.
+// 이 값들을 템플릿 리터럴로 조합해 innerHTML에 그대로 넣으면, 문자열 안에 <img onerror=...>
+// 같은 HTML/스크립트가 섞여 있을 경우 브라우저가 진짜 태그로 해석해 실행해버린다(XSS).
+// 삽입 전 <, >, &, ", ' 를 HTML 엔티티로 바꿔서 "글자 그대로의 텍스트"로만 표시되게 만든다.
+const escapeHtml = (value) => {
+  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return String(value).replace(/[&<>"']/g, (ch) => entities[ch]);
+};
+
 // [index.html 연동] <h1 id="hero-greeting">에 문구를 한 글자씩 타이핑하듯 채워 넣는다.
 // 스크롤 애니메이션(revealObserver)과 마찬가지로 "한 번 실행되고 끝나는" 연출이라
 // STATE로 관리하지 않고 독립적인 함수로 처리한다 (매 글자마다 setState를 거치면
@@ -158,8 +167,8 @@ const renderProjectFilters = (items, activeFilter) => {
       <button
         type="button"
         class="filter-btn${lang === activeFilter ? " active" : ""}"
-        data-filter="${lang}"
-      >${lang === "all" ? "전체" : lang}</button>
+        data-filter="${escapeHtml(lang)}"
+      >${lang === "all" ? "전체" : escapeHtml(lang)}</button>
     `)
     .join("");
 
@@ -226,16 +235,18 @@ const renderProjects = () => {
     statusEl.innerHTML = "";
     // map: repo 객체 배열 → 카드 HTML 문자열 배열로 변환 (템플릿 리터럴 사용)
     // 구조분해 할당으로 필요한 필드만 꺼내 쓴다.
+    // name/description/language/html_url은 GitHub API가 돌려주는 외부 문자열이라
+    // escapeHtml()을 거쳐야 innerHTML에 안전하게 삽입된다 (XSS 방지, 위쪽 escapeHtml 정의 참고).
     listEl.innerHTML = filteredItems
       .map(({ name, description, html_url, language, stargazers_count }) => `
         <article class="project-card reveal">
-          <h3>${name}</h3>
-          <p>${description ?? "설명이 없습니다."}</p>
+          <h3>${escapeHtml(name)}</h3>
+          <p>${description ? escapeHtml(description) : "설명이 없습니다."}</p>
           <div class="project-meta">
-            ${language ? `<span class="badge">${language}</span>` : ""}
+            ${language ? `<span class="badge">${escapeHtml(language)}</span>` : ""}
             <span class="badge">⭐ ${stargazers_count}</span>
           </div>
-          <a href="${html_url}" target="_blank" rel="noopener">GitHub에서 보기</a>
+          <a href="${escapeHtml(html_url)}" target="_blank" rel="noopener">GitHub에서 보기</a>
         </article>
       `)
       .join("");

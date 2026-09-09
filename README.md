@@ -23,9 +23,11 @@ HTML/CSS/JavaScript(순수 바닐라)만으로 제작한 1인 개발자 포트�
 - **HTML5**: 시맨틱 태그(`header`, `nav`, `main`, `section`, `article`, `footer`)로 구조화
 - **CSS3**: CSS 변수(`:root`), Flexbox, Grid, `@media` 반응형, `transition`/`@keyframes` 애니메이션
 - **JavaScript (ES6+, 순수 바닐라)**: `fetch`/`async-await`, `AbortController`(요청 타임아웃),
-  `IntersectionObserver`, `localStorage`, `matchMedia`(`prefers-color-scheme`),
-  화살표 함수, 구조분해 할당, 템플릿 리터럴, `map`/`filter`/`forEach`, 단일 `STATE` 객체 기반 상태 관리
+  `IntersectionObserver`, `localStorage`, `matchMedia`(`prefers-color-scheme`,
+  `prefers-reduced-motion`), 화살표 함수, 구조분해 할당, 템플릿 리터럴, `map`/`filter`/`forEach`,
+  단일 `STATE` 객체 기반 상태 관리
 - **GitHub REST API**: `GET /users/{username}/repos`
+- **EmailJS**: 문의 폼 실제 이메일 전송 (SMTP Server 서비스로 네이버 메일 연결)
 - **배포**: GitHub Pages
 
 ## 폴더 구조
@@ -63,7 +65,7 @@ Portfolio/
 - **스크롤 탑 버튼**: 300px 이상 스크롤 시 표시, 클릭 시 최상단으로 이동
 - **Projects 섹션**: GitHub API에서 저장소 목록을 가져와 로딩 → 성공/빈 상태/에러(재시도 버튼 포함) 순으로 렌더링. 요청이 8초(`FETCH_TIMEOUT_MS`) 안에 끝나지 않으면 자동 취소하고, 상태 코드(403/404/5xx)·네트워크 단절·타임아웃을 구분한 안내 메시지를 보여준다
 - **프로젝트 언어 필터**: 저장소를 불러온 뒤 실제 존재하는 언어만 골라 "전체" + 언어별 버튼을 동적으로 생성(고정된 언어 목록 아님). 버튼 클릭 시 API를 다시 부르지 않고, 이미 받아둔 목록을 `array.filter()`로 걸러 즉시 다시 그린다
-- **문의 폼 유효성 검사**: 이름/이메일/메시지 필수 입력 검증 + 이메일 형식 검증, 필드 근처에 에러 메시지 표시, 통과 시 성공 메시지 표시
+- **문의 폼 유효성 검사 + 실제 전송**: 이름/이메일/메시지 필수 입력 검증 + 이메일 형식 검증, 필드 근처에 에러 메시지 표시. 통과하면 EmailJS로 실제 이메일을 전송하며, 전송 중엔 버튼이 잠기고 "전송 중..."으로 바뀌고, 성공/실패에 따라 다른 안내 문구를 보여준다
 
 ## 상태(state) → 렌더링 흐름 (React의 상태-렌더링 기초 연습)
 
@@ -76,7 +78,8 @@ const STATE = {
   theme, navOpen, scrolled, showScrollTop,
   projects: { status, items, username, message, filter }, // message: 에러 원인별 안내 문구
                                                             // filter: "all" | 선택된 언어
-  formErrors, formSuccess,
+  formErrors,                 // 필드별 유효성 검사 에러 (name/email/message)
+  formStatus, formMessage,    // EmailJS 전송 상태("idle"|"sending"|"success"|"error")와 안내 문구
 };
 ```
 
@@ -84,7 +87,7 @@ const STATE = {
 2. **햄버거 메뉴**: 버튼 클릭 또는 열린 상태에서 `Esc`(이벤트) → `setState({ navOpen })`로 열림/닫힘 상태 변경 → `renderNav()`가 `.active` 클래스와 `aria-expanded`를 갱신(렌더링)
 3. **GitHub API**: 페이지 로드/재시도 클릭(이벤트) → `loadProjects()`가 `setState({ projects: {...} })`로 로딩/성공/에러(상태코드·네트워크·타임아웃별 `message` 포함)/빈 상태 변경(상태) → `renderProjects()`가 `#projects-list`/`#projects-status` innerHTML 교체(렌더링)
 4. **언어 필터**: 필터 버튼 클릭(이벤트) → `handleFilterClick()`이 `setState({ projects: { ...STATE.projects, filter } })`로 `STATE.projects.filter` 변경(상태) → `renderProjects()`가 이미 받아둔 `items`를 `array.filter()`로 걸러 `#projects-list`를 다시 그림(렌더링). API를 다시 호출하지 않는다
-5. **폼 검증**: 입력/제출(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링)
+5. **폼 검증 + 전송**: 입력(이벤트) → `setState({ formErrors: {...} })`로 필드별 유효성 결과 변경(상태) → `renderFormErrors()`가 에러 메시지 표시·숨김(렌더링). 제출(이벤트) → 검증 통과 시 `setState({ formStatus: "sending" })` → `emailjs.sendForm()` 결과에 따라 `setState({ formStatus: "success"|"error", formMessage })`(상태) → `renderFormStatus()`가 제출 버튼 잠금/문구를 갱신(렌더링)
 6. **스크롤**: 스크롤 이벤트 → 임계값을 막 넘었을 때만 `setState({ scrolled, showScrollTop })` 호출(상태) → `renderHeaderScroll()`/`renderScrollTopButton()`이 해당 클래스만 갱신(렌더링)
 
 `setState`는 바뀐 키에 매핑된 `render*()` 함수만 실행합니다(`RENDERERS` 매핑 테이블).
@@ -99,8 +102,41 @@ const STATE = {
 `addEventListener`에 넘기는 익명 함수 대신 이름 붙은 함수로 분리되어 있어,
 어떤 이벤트가 `STATE`의 어떤 값을 바꾸는지 함수 이름만으로 추적할 수 있습니다.
 
+## 문의 폼 실제 전송 설정 (EmailJS + 네이버 SMTP)
+
+이 프로젝트는 Formspree/EmailJS의 기본 Gmail 연동 대신, **네이버 메일(`likylove@naver.com`)을
+SMTP로 직접 연결**해서 문의 폼 제출 시 실제 이메일이 오도록 구성했습니다.
+
+1. **네이버 메일에서 SMTP 켜기**: 네이버 메일 로그인 → 환경설정 → POP3/IMAP 설정 → "SMTP 사용" 활성화
+   (2단계 인증을 쓰는 계정이면 네이버 보안설정에서 별도의 "애플리케이션 비밀번호"를 발급받아
+   그 값을 아래 비밀번호 자리에 사용)
+2. **EmailJS에서 SMTP 서비스 추가**: [emailjs.com](https://www.emailjs.com) 가입 →
+   Email Services → Add New Service → **SMTP Server** 선택 후 입력
+   - SMTP Server: `smtp.naver.com`
+   - Port: `587`(Security: STARTTLS) 또는 `465`(Security: SSL/TLS)
+   - Username: `likylove@naver.com`
+   - Password: 1번에서 확인한 비밀번호
+3. **템플릿 작성**: Email Templates → Create New Template. 이 폼의 `<input name="...">`과
+   동일한 이름의 변수를 그대로 사용합니다 (`{{name}}`, `{{email}}`, `{{message}}`).
+   - To Email: `likylove@naver.com`
+   - Reply To: `{{email}}` (문의자에게 바로 답장할 수 있도록)
+4. **키 발급**: 생성된 **Service ID**, **Template ID**, Account → General의 **Public Key**를
+   확인해 [js/script.js](js/script.js) 상단의 세 상수에 채워 넣습니다.
+   ```js
+   const EMAILJS_PUBLIC_KEY = "...";
+   const EMAILJS_SERVICE_ID = "...";
+   const EMAILJS_TEMPLATE_ID = "...";
+   ```
+
+키를 채우지 않은 채로 두면(placeholder 상태) `emailjs.sendForm()`이 실패하고,
+폼은 "메일 전송에 실패했습니다."라는 에러 상태를 정상적으로 보여줍니다(즉,
+검증 로직 자체는 키 설정과 무관하게 항상 동작합니다). 이 프로젝트는 이미
+실제 키 값이 채워져 있어 배포된 상태에서 바로 이메일 전송이 동작합니다.
+
 ## 로컬 개발 환경
 
 1. VS Code에서 프로젝트 폴더 열기
 2. `Live Server` 확장 설치 후 `index.html`에서 우클릭 → "Open with Live Server"
 3. GitHub API 호출을 확인하려면 `data/info.json`의 `github.username` 값을 본인 GitHub 아이디로 설정
+4. 문의 폼 실제 전송을 확인하려면 위 "문의 폼 실제 전송 설정" 절차대로 EmailJS 키를 발급받아
+   `js/script.js`의 `EMAILJS_PUBLIC_KEY`/`EMAILJS_SERVICE_ID`/`EMAILJS_TEMPLATE_ID`를 채우기

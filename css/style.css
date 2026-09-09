@@ -302,6 +302,22 @@ button:not(.hamburger):not(.theme-toggle):not(.scroll-top):hover {
   opacity: 0.9;
 }
 
+/* [HTML 대응] index.html의 <button id="contact-submit">.
+   [JS 연동] js가 EmailJS 응답을 기다리는 동안(STATE.formStatus === "sending")
+   이 버튼에 disabled 속성을 붙인다. :disabled 가상클래스는 그 상태를 반투명 +
+   커서 모양 변경으로 시각화해 "지금 누를 수 없다"는 것을 알려준다. */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* disabled 상태에서는 위의 hover 뜨는 효과도 걸리지 않게 한다
+   (마우스를 올려도 반응이 없어야 "잠겨있다"는 느낌이 정확히 전달된다). */
+button:disabled:hover {
+  transform: none;
+  opacity: 0.6;
+}
+
 /* ============================================
    9. About 이미지
    [HTML 대응] index.html의 <img id="about-img">. src/alt 값은 js가 채워 넣지만,

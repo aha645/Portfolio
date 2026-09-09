@@ -100,7 +100,8 @@ const STATE = {
     filter: "all",                // "all" | 특정 언어 문자열 — 언어별 필터 버튼 선택 상태
   },
   formErrors: { name: "", email: "", message: "" },
-  formSuccess: "",
+  formStatus: "idle",           // "idle" | "sending" | "success" | "error" — EmailJS 전송 상태
+  formMessage: "",              // formStatus가 success/error일 때 보여줄 안내 문구
 };
 
 // ============================================================
@@ -268,8 +269,29 @@ const renderFormErrors = () => {
     // css `.error-message`가 빨간 글씨를, `input.invalid`가 빨간 테두리를 담당한다.
     document.getElementById(field).classList.toggle("invalid", Boolean(message));
   });
-  // [index.html 연동] <p id="form-success">.
-  document.getElementById("form-success").textContent = STATE.formSuccess;
+};
+
+// [index.html 연동] <button id="contact-submit">과 <p id="form-status">.
+// STATE.formStatus에 따라 제출 버튼을 잠그고(중복 전송 방지) 문구를 바꾼다:
+//  - "sending": EmailJS 응답을 기다리는 중 → 버튼 비활성화 + "전송 중..."
+//  - "success": 전송 성공 → 성공 문구(success-message 스타일)
+//  - "error": 전송 실패(네트워크/EmailJS 설정 문제 등) → 에러 문구(error-message 스타일)
+//  - "idle": 아직 제출 전이거나 유효성 검사에 실패한 상태 → 버튼 정상, 문구 없음
+const renderFormStatus = () => {
+  const submitBtn = document.getElementById("contact-submit");
+  const statusEl = document.getElementById("form-status");
+
+  submitBtn.disabled = STATE.formStatus === "sending";
+  submitBtn.textContent = STATE.formStatus === "sending" ? "전송 중..." : "보내기";
+
+  statusEl.textContent = STATE.formMessage;
+  // className을 통째로 지정해 이전 상태의 클래스(success/error)가 남아있지 않게 한다.
+  statusEl.className =
+    STATE.formStatus === "error"
+      ? "error-message"
+      : STATE.formStatus === "success"
+        ? "success-message"
+        : "";
 };
 
 // ============================================================
@@ -286,14 +308,15 @@ const RENDERERS = {
   showScrollTop: renderScrollTopButton,
   projects: renderProjects,
   formErrors: renderFormErrors,
-  formSuccess: renderFormErrors,
+  formStatus: renderFormStatus,
+  formMessage: renderFormStatus,
 };
 
 const setState = (patch) => {
   Object.assign(STATE, patch); // 얕은 병합 — patch에 준 키만 STATE에 덮어쓴다
-  // Set을 쓰는 이유: formErrors/formSuccess처럼 서로 다른 키가 같은 render 함수를
-  // 가리키는 경우, 한 번의 setState 호출({formErrors, formSuccess}를 동시에 patch)에서
-  // renderFormErrors가 두 번 실행되는 것을 막기 위함.
+  // Set을 쓰는 이유: formStatus/formMessage처럼 서로 다른 키가 같은 render 함수를
+  // 가리키는 경우, 한 번의 setState 호출({formStatus, formMessage}를 동시에 patch)에서
+  // renderFormStatus가 두 번 실행되는 것을 막기 위함.
   const renderersToRun = new Set(
     Object.keys(patch)
       .map((key) => RENDERERS[key])
@@ -377,10 +400,40 @@ const loadProjects = async (username) => {
 };
 
 // ============================================================
-// 5. 문의 폼 유효성 검사 (상태 흐름 예시 ②)
+// EmailJS 설정 — 문의 폼 실제 전송
+//    emailjs.com 대시보드에서 발급받은 값으로 아래 세 상수를 본인 값으로 교체해야 한다.
+//
+//    이 프로젝트는 Gmail이 아니라 네이버 메일(likylove@naver.com)을 SMTP로 연결해 쓴다:
+//      1) 네이버 메일 로그인 → 환경설정 → POP3/IMAP 설정 → "SMTP 사용" 켜기
+//         (2단계 인증을 쓰면 별도로 "애플리케이션 비밀번호"를 발급해 그 값을 비밀번호로 사용)
+//      2) EmailJS 대시보드 → Email Services → Add New Service → **SMTP Server** 선택
+//           - SMTP Server: smtp.naver.com
+//           - Port: 587 (Security: STARTTLS) 또는 465 (Security: SSL/TLS)
+//           - Username: likylove@naver.com
+//           - Password: 위 1)에서 확인한 비밀번호
+//      3) Email Templates → Create New Template에서, 이 폼의 input name 속성과
+//         동일한 이름의 변수({{name}}, {{email}}, {{message}})로 본문을 작성하고,
+//         "To Email"은 likylove@naver.com, "Reply To"는 {{email}}로 설정
+//      4) 발급된 Service ID / Template ID, Account → General의 Public Key를 아래에 채운다
+// ============================================================
+const EMAILJS_PUBLIC_KEY = "n1fS48XnUB9-n_G3l";
+const EMAILJS_SERVICE_ID = "service_g48smoo";
+const EMAILJS_TEMPLATE_ID = "template_rvdgv14";
+
+// index.html에서 EmailJS SDK를 script.js보다 먼저(defer 순서상) 불러오므로,
+// 이 시점에 전역 emailjs 객체가 이미 존재하는 것이 정상이다. 다만 CDN 로드 실패
+// (네트워크 문제, 광고 차단기 등)에 대비해 존재 여부를 확인 후 초기화한다 — 그렇지
+// 않으면 여기서 발생하는 에러 하나가 스크립트 전체 실행을 멈춰 다크모드/햄버거 같은
+// 무관한 기능까지 전부 죽어버린다.
+if (typeof emailjs !== "undefined") {
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+}
+
+// ============================================================
+// 5. 문의 폼 유효성 검사 + 실제 전송 (상태 흐름 예시 ②)
 //    이벤트(input 입력 / submit 클릭)
-//    → setState로 STATE.formErrors / STATE.formSuccess 변경
-//    → renderFormErrors()가 에러 메시지·성공 메시지를 갱신
+//    → setState로 STATE.formErrors(필드별 유효성) / STATE.formStatus·formMessage(전송 상태) 변경
+//    → renderFormErrors()/renderFormStatus()가 에러 메시지·전송 상태 문구를 갱신
 // ============================================================
 const initContactForm = () => {
   const form = document.getElementById("contact-form");
@@ -413,13 +466,40 @@ const initContactForm = () => {
     const isValid = fieldNames.map((field) => validateAndSetField(field)).every(Boolean);
 
     if (!isValid) {
-      // 유효성 실패 시 이전에 남아있을 수 있는 성공 메시지를 비운다.
-      setState({ formSuccess: "" });
+      // 유효성 실패 시 이전에 남아있을 수 있는 전송 성공/실패 문구를 비운다.
+      setState({ formStatus: "idle", formMessage: "" });
       return;
     }
 
-    setState({ formSuccess: "문의가 성공적으로 접수되었습니다. 감사합니다!" });
-    form.reset();
+    // EmailJS SDK가 로드되지 않았다면(CDN 실패 등) 바로 에러로 처리하고 끝낸다.
+    if (typeof emailjs === "undefined") {
+      setState({ formStatus: "error", formMessage: "메일 전송 기능을 사용할 수 없습니다." });
+      return;
+    }
+
+    // 전송 시작: 버튼을 잠그고 "전송 중..."으로 바꿔 중복 클릭을 막는다.
+    setState({ formStatus: "sending", formMessage: "" });
+
+    // emailjs.sendForm은 form 엘리먼트 안의 name 속성 있는 입력값(name/email/message)을
+    // 그대로 읽어서, EmailJS 템플릿에 만들어둔 같은 이름의 변수({{name}}, {{email}},
+    // {{message}})에 매핑해 전송한다. 성공/실패 모두 Promise로 알려준다.
+    emailjs
+      .sendForm(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, form)
+      .then(() => {
+        setState({
+          formStatus: "success",
+          formMessage: "문의가 성공적으로 접수되었습니다. 감사합니다!",
+        });
+        form.reset();
+      })
+      .catch((error) => {
+        // 네트워크 문제, Service/Template ID 오타, SMTP 인증 실패 등이 여기로 들어온다.
+        console.error(error);
+        setState({
+          formStatus: "error",
+          formMessage: "메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        });
+      });
   };
 
   // [index.html 연동] 각 <input>/<textarea>에 input 이벤트를 건다.

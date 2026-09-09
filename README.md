@@ -21,7 +21,7 @@ HTML/CSS/JavaScript(순수 바닐라)로 제작한 반응형 포트폴리오 사
 ## 사용 기술
 
 - **HTML5**: 시맨틱 태그(`header`/`nav`/`main`/`section`/`article`/`footer`)
-- **CSS3**: CSS 변수(`:root`), Flexbox, Grid, `@media` 반응형, `transition`/`@keyframes`
+- **CSS**: Flexbox, Grid, CSS 변수(Custom Properties) 등 모던 CSS 모듈 + `@media`/`transition`/`@keyframes`(CSS3)
 - **JavaScript (ES6+)**: `fetch`/`async-await`, `IntersectionObserver`, `localStorage`, `matchMedia`, 단일 `STATE` 객체 기반 상태 관리
 - **GitHub REST API**: `GET /users/{username}/repos`
 - **EmailJS**: 문의 폼 실제 이메일 전송 (SMTP Server로 네이버 메일 연결)

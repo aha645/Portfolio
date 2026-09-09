@@ -59,7 +59,7 @@ Portfolio/
 ## 인터랙션 목록
 
 - **Hero 타이핑 효과**: 인사말이 한 글자씩 타자기처럼 나타나고, 타이핑 중에는 깜빡이는 커서(`|`)가 표시된다. 시스템의 "동작 줄이기"(`prefers-reduced-motion`) 설정이 켜져 있으면 애니메이션 없이 전체 문구를 즉시 표시한다
-- **다크 모드 토글**: 우측 상단 버튼 클릭 → `html[data-theme]` 속성 전환 → `localStorage`에 저장되어 새로고침 후에도 유지. 저장된 값이 없는 첫 방문 시에는 OS의 `prefers-color-scheme`(다크 모드 선호 여부)를 확인해 초기 테마를 정한다 (`getInitialTheme()`)
+- **다크 모드 토글**: 우측 상단 버튼 클릭 → `html[data-theme]` 속성 전환 → `localStorage`에 저장되어 새로고침 후에도 유지. 저장된 값이 없는 첫 방문 시에는 OS의 `prefers-color-scheme`(다크 모드 선호 여부)를 확인해 초기 테마를 정한다 (`getInitialTheme()`). 사용자가 아직 토글을 누른 적이 없다면, 페이지를 열어둔 채로 OS 다크모드 설정이 바뀌는 것도 `prefers-color-scheme` 미디어쿼리 변화를 구독해 실시간으로 반영한다(`handleSystemThemeChange()`) — 단, 한 번이라도 직접 토글하면 그 선택이 우선되어 이후 시스템 변경은 무시한다
 - **햄버거 메뉴**: 768px 미만 화면에서 메뉴 버튼 클릭 시 `classList.toggle('active')`로 열림/닫힘. 메뉴가 열린 상태에서 `Esc` 키를 누르면 닫히고 포커스가 햄버거 버튼으로 돌아간다 (키보드 접근성)
 - **부드러운 스크롤**: 네비게이션 클릭 시 `scrollIntoView({ behavior: 'smooth' })`로 해당 섹션 이동
 - **스크롤 탑 버튼**: 300px 이상 스크롤 시 표시, 클릭 시 최상단으로 이동

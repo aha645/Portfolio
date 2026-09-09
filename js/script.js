@@ -531,6 +531,18 @@ const getInitialTheme = () => {
   return prefersDark ? "dark" : "light";
 };
 
+// [실시간 반영] 페이지를 열어둔 채로 OS의 다크모드 설정이 바뀌는 경우를 감지한다.
+// 단, 사용자가 토글 버튼으로 이미 직접 테마를 고른 적이 있다면(localStorage에 저장됨)
+// 그 선택을 존중해 시스템 변경을 무시한다 — 그렇지 않으면 사용자가 일부러 라이트모드로
+// 바꿔놨는데 OS 설정이 바뀔 때마다 의도치 않게 테마가 따라 바뀌는 불편함이 생긴다.
+const handleSystemThemeChange = (event) => {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "dark" || saved === "light") {
+    return; // 사용자가 직접 고른 값이 있으므로 시스템 변경을 반영하지 않는다
+  }
+  setState({ theme: event.matches ? "dark" : "light" });
+};
+
 // 아래는 각 인터랙션의 이벤트 핸들러를 이름 붙은 함수로 분리한 것이다.
 // addEventListener에 매번 새 익명 함수를 넘기는 대신 이렇게 분리해두면,
 // 핸들러 이름만 보고도 무슨 동작인지 알 수 있고 필요하면 다른 곳에서도 재사용할 수 있다.
@@ -588,6 +600,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   // data-theme 속성과 버튼 아이콘을 갱신 → css [data-theme="dark"]가 전체 배색을 바꾼다.
   setState({ theme: getInitialTheme() });
   document.getElementById("theme-toggle").addEventListener("click", handleThemeToggleClick);
+
+  // prefers-color-scheme 미디어쿼리 자체를 구독해, 페이지를 열어둔 채로 OS 설정이
+  // 바뀌는 순간(예: 저녁이 되어 시스템이 자동으로 다크모드로 전환)에도 실시간으로
+  // 반영한다. MediaQueryList.addEventListener는 비교적 최신 API라 구형 Safari 등
+  // 일부 브라우저는 addListener(구버전 API)만 지원하므로 함께 대응한다.
+  const darkSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+  if (darkSchemeQuery) {
+    if (darkSchemeQuery.addEventListener) {
+      darkSchemeQuery.addEventListener("change", handleSystemThemeChange);
+    } else if (darkSchemeQuery.addListener) {
+      darkSchemeQuery.addListener(handleSystemThemeChange);
+    }
+  }
 
   // ---- 햄버거 메뉴 토글 (+ Esc로 닫기) ----
   document.getElementById("hamburger").addEventListener("click", handleHamburgerClick);

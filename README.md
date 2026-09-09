@@ -8,6 +8,9 @@ HTML/CSS/JavaScript(순수 바닐라)로 제작한 반응형 포트폴리오 사
 - GitHub 저장소: https://github.com/aha645/Portfolio
 - GitHub Pages: https://aha645.github.io/Portfolio/
 
+**배포 절차**: 저장소 Settings → Pages → Source를 `main` 브랜치 `/ (root)`로 설정 → Save.
+몇 분 뒤 `https://{계정}.github.io/{저장소명}/`에서 접속 가능합니다.
+
 ## 스크린샷
 
 | 화면 | 데스크톱 | 모바일 |
@@ -57,6 +60,18 @@ Portfolio/
 | Hero 타이핑 효과 속도 | 글자당 `80ms` | `TYPING_SPEED_MS` |
 | 반응형 브레이크포인트 | `768px`(태블릿), `1024px`(데스크톱) | `css/style.css` `@media` |
 
+**검증**: 개발자도구 반응형 모드에서 폭을 767→768px, 1023→1024px로 넘기며 햄버거/네비/카드 레이아웃 전환을 확인합니다.
+
+## GitHub API 에러 문구
+
+상태 코드별로 다른 문구를 보여줍니다 (`getGitHubErrorMessage()`).
+
+| 상황 | 표시 문구 |
+|---|---|
+| 403 (요청 한도 초과) | GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요. |
+| 404 (사용자 없음) | 해당 GitHub 사용자를 찾을 수 없습니다. |
+| 5xx (서버 오류) | GitHub 서버에 일시적인 문제가 발생했습니다. |
+
 ## 상태(state) → 렌더링 흐름
 
 단일 `STATE` 객체와 `setState()`로 "이벤트 → 상태 변경 → 화면 갱신"을 한 방향으로 강제합니다.
@@ -81,6 +96,12 @@ const STATE = {
 영역(프로젝트 카드 등)까지 다시 그리지 않습니다. Hero/About/Skills/Footer 콘텐츠는 로드 시
 한 번만 채워지는 정적 값이라 `STATE`에 포함하지 않았습니다.
 
+Hero 타이핑 효과는 시스템의 "동작 줄이기"(`prefers-reduced-motion`) 설정을 감지해, 켜져 있으면
+애니메이션 없이 문구를 즉시 전체 표시합니다.
+
+새 기능을 추가할 땐 `projects`처럼 관련 상태를 하나의 하위 객체로 묶고, `RENDERERS`에 담당
+render 함수를 매핑하는 패턴을 따릅니다.
+
 ## 문의 폼 실제 전송 설정 (EmailJS + 네이버 SMTP)
 
 Gmail 대신 **SMTP Server 서비스로 네이버 메일**을 연결해 실제 이메일이 전송되도록 구성했습니다.
@@ -91,6 +112,12 @@ Gmail 대신 **SMTP Server 서비스로 네이버 메일**을 연결해 실제 �
    - Username / Password: 본인 네이버 메일 주소 / 위 비밀번호
 3. Email Templates에서 `{{name}}`, `{{email}}`, `{{message}}` 변수로 템플릿 작성, To Email은 본인 메일 주소, Reply To는 `{{email}}`
 4. 발급된 Service ID / Template ID / Public Key를 [js/script.js](js/script.js)의 `EMAILJS_*` 상수에 채워 넣기 (이미 채워져 있어 바로 동작)
+
+## 접근성 체크리스트
+
+- Tab 키만으로 메뉴·폼 전체 탐색 가능
+- 햄버거 메뉴 열림 상태에서 `Esc`로 닫힘, 포커스가 버튼으로 복귀
+- 폼 에러/전송 상태는 `role="status"`/`aria-live`로 스크린리더에 자동 안내
 
 ## 로컬 개발 환경
 

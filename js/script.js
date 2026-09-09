@@ -17,6 +17,9 @@ const SCROLL_TOP_THRESHOLD = 300;  // 이 값(px) 이상 스크롤하면 맨 위
 const REVEAL_THRESHOLD = 0.2;      // IntersectionObserver: 요소가 20% 보이면 애니메이션 실행
 const FETCH_TIMEOUT_MS = 8000;     // GitHub API 응답을 이 시간(ms) 이상 기다리지 않음
 const TYPING_SPEED_MS = 80;        // Hero 타이핑 효과: 한 글자당 이 시간(ms)만큼 지연
+// 로컬파트@도메인.최상위도메인 형태만 허용한다 (예: a@b.com).
+// 국제화 도메인(한글 도메인 등)이나 따옴표를 포함한 로컬파트 같은 RFC 5322의
+// 예외적인 케이스까지는 검사하지 않는, 실무에서 흔히 쓰는 단순화된 패턴이다.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // [보안] GitHub API가 돌려주는 저장소 이름/설명/언어/URL은 "우리가 통제할 수 없는 외부 문자열"이다.
@@ -198,6 +201,10 @@ const renderProjects = () => {
   if (status === "error") {
     // message는 loadProjects()의 catch에서 원인(상태코드/네트워크/타임아웃)별로
     // 구체적으로 채워 넣는다. 화면에는 그 문구를 그대로 보여준다.
+    //
+    // [설계 결정] 자동 백오프 재시도(실패 시 일정 간격으로 반복 재요청)를 넣지 않고
+    // 수동 재시도 버튼만 제공한다. GitHub API 실패의 흔한 원인은 레이트리밋(403)인데,
+    // 자동으로 계속 재시도하면 오히려 API를 더 두드려 한도 회복을 늦출 수 있기 때문이다.
     filtersEl.innerHTML = "";
     statusEl.innerHTML = `
       <p class="error">${message}</p>
@@ -323,7 +330,14 @@ const RENDERERS = {
   formMessage: renderFormStatus,
 };
 
+// 개발 중 STATE가 어떻게 바뀌는지 콘솔에서 추적하고 싶을 때 true로 바꾼다.
+// 평소(false)에는 setState 호출 비용에 아무 영향도 주지 않는다.
+const DEBUG = false;
+
 const setState = (patch) => {
+  if (DEBUG) {
+    console.log("[setState]", patch); // 어떤 키가 어떤 값으로 바뀌었는지 확인용
+  }
   Object.assign(STATE, patch); // 얕은 병합 — patch에 준 키만 STATE에 덮어쓴다
   // Set을 쓰는 이유: formStatus/formMessage처럼 서로 다른 키가 같은 render 함수를
   // 가리키는 경우, 한 번의 setState 호출({formStatus, formMessage}를 동시에 patch)에서
@@ -601,6 +615,13 @@ const handleKeydown = (event) => {
   }
 };
 
+// [설계 결정] 아래에서 등록하는 이벤트 리스너들은 removeEventListener로 나중에
+// 제거하지 않는다. React 같은 프레임워크였다면 컴포넌트가 언마운트될 때 리스너를
+// 정리해야 메모리 누수가 없지만, 이 페이지는 컴포넌트가 마운트/언마운트되는 SPA가
+// 아니라 처음부터 끝까지 그대로 떠 있는 정적 페이지다. 즉 버튼(#hamburger 등) 자체가
+// 페이지가 열려있는 동안 사라지지 않으므로, 리스너도 페이지 생명주기 동안 한 번만
+// 등록되고 유지되면 충분하다.
+//
 // script.js는 <head>에서 defer로 로드되므로 DOM 파싱은 이미 끝나 있지만,
 // 아래처럼 DOMContentLoaded로 한 번 더 감싸도 안전하다 — defer 스크립트는
 // DOMContentLoaded 이벤트가 "발생하기 직전"에 실행되므로 이 리스너는

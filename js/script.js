@@ -1,9 +1,10 @@
-// 반응형 포트폴리오 — 동작 스크립트
-// 상태 관리 구조(STATE → setState → render), 기능별 동작 흐름, 설계 결정의 배경은
-// docs/ARCHITECTURE.md 참고
+// 반응형 포트폴리오 — 동작 스크립트 (객체지향 버전)
+// 기존 함수형(STATE → setState → render 함수) 구조를 그대로 유지하되,
+// 각 기능(테마/네비/스크롤/프로젝트/문의폼)을 담당 클래스로 분리했다.
+// 콜백으로 넘겨지거나 렌더러 맵에 저장되는 메서드는 전부 화살표 함수 클래스 필드로
+// 선언해 this가 항상 해당 인스턴스에 고정되도록 했다 (별도 bind() 불필요).
 
-// 0. 공통 상수 · 유틸
-const root = document.documentElement;
+// 0. 설정 상수
 const THEME_KEY = "portfolio-theme";
 
 const NAV_SCROLL_THRESHOLD = 60;
@@ -14,488 +15,561 @@ const TYPING_SPEED_MS = 80;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const escapeHtml = (value) => {
-  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  return String(value).replace(/[&<>"']/g, (ch) => entities[ch]);
-};
-
-const typeText = (el, text, speed = TYPING_SPEED_MS) => {
-  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  if (prefersReducedMotion) {
-    el.textContent = text;
-    return;
-  }
-
-  el.textContent = "";
-
-  el.classList.add("typing");
-
-  let i = 0;
-  const step = () => {
-    if (i < text.length) {
-      el.textContent += text[i];
-      i += 1;
-      setTimeout(step, speed);
-    } else {
-      el.classList.remove("typing");
-    }
-  };
-  step();
-};
-
-const revealObserver = new IntersectionObserver(
-  (entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("visible");
-        revealObserver.unobserve(entry.target);
-      }
-    });
-  },
-  { threshold: REVEAL_THRESHOLD }
-);
-
-const observeReveal = (scope = document) => {
-  scope.querySelectorAll(".reveal").forEach((el) => revealObserver.observe(el));
-};
-
-// 1. 중앙 상태 객체
-const STATE = {
-  theme: "light",
-  navOpen: false,
-  scrolled: false,
-  showScrollTop: false,
-  projects: {
-    status: "idle",
-    items: [],
-    username: "",
-    message: "",
-    filter: "all",
-  },
-  formErrors: { name: "", email: "", message: "" },
-  formStatus: "idle",
-  formMessage: "",
-};
-
-// 2. render 함수 — STATE를 읽어 DOM에 반영
-const renderTheme = () => {
-  root.setAttribute("data-theme", STATE.theme);
-  const toggleBtn = document.getElementById("theme-toggle");
-  if (toggleBtn) {
-    toggleBtn.textContent = STATE.theme === "dark" ? "☀️" : "🌙";
-  }
-};
-
-const renderNav = () => {
-  const hamburger = document.getElementById("hamburger");
-  const navMenu = document.getElementById("nav-menu");
-
-  navMenu.classList.toggle("active", STATE.navOpen);
-
-  hamburger.classList.toggle("active", STATE.navOpen);
-  hamburger.setAttribute("aria-expanded", String(STATE.navOpen));
-};
-
-const renderHeaderScroll = () => {
-  document.getElementById("site-header").classList.toggle("scrolled", STATE.scrolled);
-};
-
-const renderScrollTopButton = () => {
-  document.getElementById("scroll-top").classList.toggle("show", STATE.showScrollTop);
-};
-
-const renderProjectFilters = (items, activeFilter) => {
-  const filtersEl = document.getElementById("projects-filters");
-
-  const languages = [...new Set(items.map((repo) => repo.language).filter(Boolean))];
-  const filters = ["all", ...languages];
-
-  filtersEl.innerHTML = filters
-    .map((lang) => `
-      <button
-        type="button"
-        class="filter-btn${lang === activeFilter ? " active" : ""}"
-        data-filter="${escapeHtml(lang)}"
-      >${lang === "all" ? "전체" : escapeHtml(lang)}</button>
-    `)
-    .join("");
-
-  filtersEl.querySelectorAll(".filter-btn").forEach((btn) => {
-    btn.addEventListener("click", () => handleFilterClick(btn.dataset.filter));
-  });
-};
-
-const renderProjects = () => {
-  const { status, items, username, message, filter } = STATE.projects;
-  const filtersEl = document.getElementById("projects-filters");
-  const statusEl = document.getElementById("projects-status");
-  const listEl = document.getElementById("projects-list");
-
-  if (status === "loading") {
-    filtersEl.innerHTML = "";
-    statusEl.innerHTML = `<p class="loading">프로젝트를 불러오는 중...</p>`;
-    listEl.innerHTML = "";
-    return;
-  }
-
-  if (status === "error") {
-    filtersEl.innerHTML = "";
-    statusEl.innerHTML = `
-      <p class="error">${message}</p>
-      <button id="retry-btn" class="btn" type="button">다시 시도</button>
-    `;
-    listEl.innerHTML = "";
-    const handleRetryClick = () => loadProjects(username);
-    document.getElementById("retry-btn").addEventListener("click", handleRetryClick);
-    return;
-  }
-
-  if (status === "empty") {
-    filtersEl.innerHTML = "";
-    statusEl.innerHTML = `<p class="empty">표시할 프로젝트가 없습니다.</p>`;
-    listEl.innerHTML = "";
-    return;
-  }
-
-  if (status === "success") {
-    renderProjectFilters(items, filter);
-
-    const filteredItems =
-      filter === "all" ? items : items.filter((repo) => repo.language === filter);
-
-    if (filteredItems.length === 0) {
-      statusEl.innerHTML = `<p class="empty">해당 언어의 프로젝트가 없습니다.</p>`;
-      listEl.innerHTML = "";
-      return;
-    }
-
-    statusEl.innerHTML = "";
-
-    listEl.innerHTML = filteredItems
-      .map(({ name, description, html_url, language, stargazers_count }) => `
-        <article class="project-card reveal">
-          <h3>${escapeHtml(name)}</h3>
-          <p>${description ? escapeHtml(description) : "설명이 없습니다."}</p>
-          <div class="project-meta">
-            ${language ? `<span class="badge">${escapeHtml(language)}</span>` : ""}
-            <span class="badge">⭐ ${stargazers_count}</span>
-          </div>
-          <a href="${escapeHtml(html_url)}" target="_blank" rel="noopener">GitHub에서 보기</a>
-        </article>
-      `)
-      .join("");
-
-    observeReveal(listEl);
-    return;
-  }
-
-  filtersEl.innerHTML = "";
-  statusEl.innerHTML = "";
-  listEl.innerHTML = "";
-};
-
-const handleFilterClick = (language) => {
-  setState({ projects: { ...STATE.projects, filter: language } });
-};
-
-const renderFormErrors = () => {
-  Object.entries(STATE.formErrors).forEach(([field, message]) => {
-    document.getElementById(`${field}-error`).textContent = message;
-
-    document.getElementById(field).classList.toggle("invalid", Boolean(message));
-  });
-};
-
-const renderFormStatus = () => {
-  const submitBtn = document.getElementById("contact-submit");
-  const statusEl = document.getElementById("form-status");
-
-  submitBtn.disabled = STATE.formStatus === "sending";
-  submitBtn.textContent = STATE.formStatus === "sending" ? "전송 중..." : "보내기";
-
-  statusEl.textContent = STATE.formMessage;
-
-  statusEl.className =
-    STATE.formStatus === "error"
-      ? "error-message"
-      : STATE.formStatus === "success"
-        ? "success-message"
-        : "";
-};
-
-// 3. setState — STATE를 바꾸는 유일한 통로
-const RENDERERS = {
-  theme: renderTheme,
-  navOpen: renderNav,
-  scrolled: renderHeaderScroll,
-  showScrollTop: renderScrollTopButton,
-  projects: renderProjects,
-  formErrors: renderFormErrors,
-  formStatus: renderFormStatus,
-  formMessage: renderFormStatus,
-};
-
-const DEBUG = false;
-
-const setState = (patch) => {
-  if (DEBUG) {
-    console.log("[setState]", patch);
-  }
-  Object.assign(STATE, patch);
-
-  const renderersToRun = new Set(
-    Object.keys(patch)
-      .map((key) => RENDERERS[key])
-      .filter(Boolean)
-  );
-  renderersToRun.forEach((renderFn) => renderFn());
-};
-
-// 4. GitHub API 연동
-const fetchWithTimeout = async (url, timeoutMs = FETCH_TIMEOUT_MS) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
-const getGitHubErrorMessage = (status) => {
-  if (status === 403) return "GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.";
-  if (status === 404) return "해당 GitHub 사용자를 찾을 수 없습니다.";
-  if (status >= 500) return "GitHub 서버에 일시적인 문제가 발생했습니다.";
-  return `프로젝트를 불러올 수 없습니다. (오류 코드: ${status})`;
-};
-
-const loadProjects = async (username) => {
-  setState({ projects: { status: "loading", items: [], username, message: "", filter: "all" } });
-
-  try {
-    const res = await fetchWithTimeout(
-      `https://api.github.com/users/${username}/repos?sort=updated`
-    );
-
-    if (!res.ok) {
-      throw new Error(getGitHubErrorMessage(res.status));
-    }
-
-    const repos = await res.json();
-
-    const ownRepos = repos.filter((repo) => !repo.fork);
-
-    if (ownRepos.length === 0) {
-      setState({ projects: { status: "empty", items: [], username, message: "", filter: "all" } });
-      return;
-    }
-
-    setState({
-      projects: { status: "success", items: ownRepos, username, message: "", filter: "all" },
-    });
-  } catch (error) {
-    console.error(error);
-
-    let message = error.message || "프로젝트를 불러올 수 없습니다.";
-    if (error.name === "AbortError") {
-      message = "요청 시간이 초과되었습니다. 네트워크 상태를 확인 후 다시 시도해주세요.";
-    } else if (error instanceof TypeError) {
-      message = "네트워크 연결을 확인해주세요.";
-    }
-
-    setState({ projects: { status: "error", items: [], username, message, filter: "all" } });
-  }
-};
-
-// 5. EmailJS 설정 (docs/ARCHITECTURE.md 4.2 참고)
 const EMAILJS_PUBLIC_KEY = "n1fS48XnUB9-n_G3l";
 const EMAILJS_SERVICE_ID = "service_g48smoo";
 const EMAILJS_TEMPLATE_ID = "template_rvdgv14";
 
-if (typeof emailjs !== "undefined") {
-  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+const DEBUG = false;
+
+// 1. 유틸리티 클래스 — 특정 기능에 속하지 않는 순수 도우미
+
+class Utils {
+  static escapeHtml(value) {
+    const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+    return String(value).replace(/[&<>"']/g, (ch) => entities[ch]);
+  }
 }
 
-// 6. 문의 폼 — 유효성 검사 + 전송
-const initContactForm = () => {
-  const form = document.getElementById("contact-form");
-  const fieldNames = ["name", "email", "message"];
+// Hero 타이핑 효과. 재귀 스텝(_typeStep)을 함수 안에 숨은 익명 클로저가 아니라
+// 클래스의 이름 있는 메서드로 분리해서, "함수 안에 함수"처럼 보이지 않게 했다.
+class TypeWriter {
+  constructor(speed = TYPING_SPEED_MS) {
+    this.speed = speed;
+  }
 
-  const validateField = (field) => {
+  type(el, text) {
+    const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      el.textContent = text;
+      return;
+    }
+
+    el.textContent = "";
+    el.classList.add("typing");
+    this._typeStep(el, text, 0);
+  }
+
+  // setTimeout 콜백으로 재귀 호출되므로 화살표 필드로 선언해 this를 고정한다.
+  _typeStep = (el, text, index) => {
+    if (index < text.length) {
+      el.textContent += text[index];
+      setTimeout(() => this._typeStep(el, text, index + 1), this.speed);
+    } else {
+      el.classList.remove("typing");
+    }
+  };
+}
+
+// 스크롤 등장 애니메이션. 관찰자(IntersectionObserver) 하나를 인스턴스가 들고 있다가
+// observe(scope)로 원하는 범위의 .reveal 요소들을 등록한다.
+class RevealAnimator {
+  constructor(threshold = REVEAL_THRESHOLD) {
+    this.observer = new IntersectionObserver(this._handleIntersect, { threshold });
+  }
+
+  _handleIntersect = (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("visible");
+        this.observer.unobserve(entry.target);
+      }
+    });
+  };
+
+  observe(scope = document) {
+    scope.querySelectorAll(".reveal").forEach((el) => this.observer.observe(el));
+  }
+}
+
+// 2. 기능별 컨트롤러 클래스
+// 각 컨트롤러는 PortfolioApp 인스턴스(app)를 생성자로 받아 app.state를 읽고
+// app.setState(...)로만 상태를 바꾼다 — "단일 상태 저장소"라는 원래 설계는 그대로 유지된다.
+
+class ThemeController {
+  constructor(app) {
+    this.app = app;
+  }
+
+  getInitialTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") {
+      return saved;
+    }
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    return prefersDark ? "dark" : "light";
+  }
+
+  render = () => {
+    document.documentElement.setAttribute("data-theme", this.app.state.theme);
+    const toggleBtn = document.getElementById("theme-toggle");
+    if (toggleBtn) {
+      toggleBtn.textContent = this.app.state.theme === "dark" ? "☀️" : "🌙";
+    }
+  };
+
+  handleToggleClick = () => {
+    const next = this.app.state.theme === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    this.app.setState({ theme: next });
+  };
+
+  // 사용자가 토글을 직접 누른 적이 없을 때만 OS 다크모드 변경을 실시간 반영한다.
+  handleSystemChange = (event) => {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") {
+      return;
+    }
+    this.app.setState({ theme: event.matches ? "dark" : "light" });
+  };
+
+  init() {
+    this.app.setState({ theme: this.getInitialTheme() });
+    document.getElementById("theme-toggle").addEventListener("click", this.handleToggleClick);
+
+    const darkSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (darkSchemeQuery) {
+      if (darkSchemeQuery.addEventListener) {
+        darkSchemeQuery.addEventListener("change", this.handleSystemChange);
+      } else if (darkSchemeQuery.addListener) {
+        darkSchemeQuery.addListener(this.handleSystemChange);
+      }
+    }
+  }
+}
+
+class NavMenu {
+  constructor(app) {
+    this.app = app;
+  }
+
+  render = () => {
+    const hamburger = document.getElementById("hamburger");
+    const navMenu = document.getElementById("nav-menu");
+
+    navMenu.classList.toggle("active", this.app.state.navOpen);
+    hamburger.classList.toggle("active", this.app.state.navOpen);
+    hamburger.setAttribute("aria-expanded", String(this.app.state.navOpen));
+  };
+
+  handleHamburgerClick = () => {
+    this.app.setState({ navOpen: !this.app.state.navOpen });
+  };
+
+  handleNavLinkClick = (event) => {
+    event.preventDefault();
+    const target = document.querySelector(event.currentTarget.getAttribute("href"));
+    target?.scrollIntoView({ behavior: "smooth" });
+    this.app.setState({ navOpen: false });
+  };
+
+  handleKeydown = (event) => {
+    if (event.key === "Escape" && this.app.state.navOpen) {
+      this.app.setState({ navOpen: false });
+      document.getElementById("hamburger").focus();
+    }
+  };
+
+  init() {
+    document.getElementById("hamburger").addEventListener("click", this.handleHamburgerClick);
+    document.addEventListener("keydown", this.handleKeydown);
+    document.querySelectorAll(".nav-link").forEach((link) => {
+      link.addEventListener("click", this.handleNavLinkClick);
+    });
+  }
+}
+
+class ScrollWatcher {
+  constructor(app) {
+    this.app = app;
+  }
+
+  renderHeader = () => {
+    document.getElementById("site-header").classList.toggle("scrolled", this.app.state.scrolled);
+  };
+
+  renderScrollTopButton = () => {
+    document.getElementById("scroll-top").classList.toggle("show", this.app.state.showScrollTop);
+  };
+
+  handleScroll = () => {
+    const scrolled = window.scrollY > NAV_SCROLL_THRESHOLD;
+    const showScrollTop = window.scrollY > SCROLL_TOP_THRESHOLD;
+
+    if (scrolled !== this.app.state.scrolled || showScrollTop !== this.app.state.showScrollTop) {
+      this.app.setState({ scrolled, showScrollTop });
+    }
+  };
+
+  handleScrollTopClick = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  init() {
+    window.addEventListener("scroll", this.handleScroll);
+    document.getElementById("scroll-top").addEventListener("click", this.handleScrollTopClick);
+  }
+}
+
+class ProjectsSection {
+  constructor(app, revealAnimator) {
+    this.app = app;
+    this.reveal = revealAnimator;
+  }
+
+  async fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  getErrorMessage(status) {
+    if (status === 403) return "GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.";
+    if (status === 404) return "해당 GitHub 사용자를 찾을 수 없습니다.";
+    if (status >= 500) return "GitHub 서버에 일시적인 문제가 발생했습니다.";
+    return `프로젝트를 불러올 수 없습니다. (오류 코드: ${status})`;
+  }
+
+  load = async (username) => {
+    this.app.setState({
+      projects: { status: "loading", items: [], username, message: "", filter: "all" },
+    });
+
+    try {
+      const res = await this.fetchWithTimeout(
+        `https://api.github.com/users/${username}/repos?sort=updated`
+      );
+
+      if (!res.ok) {
+        throw new Error(this.getErrorMessage(res.status));
+      }
+
+      const repos = await res.json();
+      const ownRepos = repos.filter((repo) => !repo.fork);
+
+      if (ownRepos.length === 0) {
+        this.app.setState({
+          projects: { status: "empty", items: [], username, message: "", filter: "all" },
+        });
+        return;
+      }
+
+      this.app.setState({
+        projects: { status: "success", items: ownRepos, username, message: "", filter: "all" },
+      });
+    } catch (error) {
+      console.error(error);
+
+      let message = error.message || "프로젝트를 불러올 수 없습니다.";
+      if (error.name === "AbortError") {
+        message = "요청 시간이 초과되었습니다. 네트워크 상태를 확인 후 다시 시도해주세요.";
+      } else if (error instanceof TypeError) {
+        message = "네트워크 연결을 확인해주세요.";
+      }
+
+      this.app.setState({
+        projects: { status: "error", items: [], username, message, filter: "all" },
+      });
+    }
+  };
+
+  handleFilterClick = (language) => {
+    this.app.setState({ projects: { ...this.app.state.projects, filter: language } });
+  };
+
+  renderFilters(items, activeFilter) {
+    const filtersEl = document.getElementById("projects-filters");
+
+    const languages = [...new Set(items.map((repo) => repo.language).filter(Boolean))];
+    const filters = ["all", ...languages];
+
+    filtersEl.innerHTML = filters
+      .map((lang) => `
+        <button
+          type="button"
+          class="filter-btn${lang === activeFilter ? " active" : ""}"
+          data-filter="${Utils.escapeHtml(lang)}"
+        >${lang === "all" ? "전체" : Utils.escapeHtml(lang)}</button>
+      `)
+      .join("");
+
+    filtersEl.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this.handleFilterClick(btn.dataset.filter));
+    });
+  }
+
+  render = () => {
+    const { status, items, username, message, filter } = this.app.state.projects;
+    const filtersEl = document.getElementById("projects-filters");
+    const statusEl = document.getElementById("projects-status");
+    const listEl = document.getElementById("projects-list");
+
+    if (status === "loading") {
+      filtersEl.innerHTML = "";
+      statusEl.innerHTML = `<p class="loading">프로젝트를 불러오는 중...</p>`;
+      listEl.innerHTML = "";
+      return;
+    }
+
+    if (status === "error") {
+      filtersEl.innerHTML = "";
+      statusEl.innerHTML = `
+        <p class="error">${message}</p>
+        <button id="retry-btn" class="btn" type="button">다시 시도</button>
+      `;
+      listEl.innerHTML = "";
+      document.getElementById("retry-btn").addEventListener("click", () => this.load(username));
+      return;
+    }
+
+    if (status === "empty") {
+      filtersEl.innerHTML = "";
+      statusEl.innerHTML = `<p class="empty">표시할 프로젝트가 없습니다.</p>`;
+      listEl.innerHTML = "";
+      return;
+    }
+
+    if (status === "success") {
+      this.renderFilters(items, filter);
+
+      const filteredItems =
+        filter === "all" ? items : items.filter((repo) => repo.language === filter);
+
+      if (filteredItems.length === 0) {
+        statusEl.innerHTML = `<p class="empty">해당 언어의 프로젝트가 없습니다.</p>`;
+        listEl.innerHTML = "";
+        return;
+      }
+
+      statusEl.innerHTML = "";
+
+      listEl.innerHTML = filteredItems
+        .map(({ name, description, html_url, language, stargazers_count }) => `
+          <article class="project-card reveal">
+            <h3>${Utils.escapeHtml(name)}</h3>
+            <p>${description ? Utils.escapeHtml(description) : "설명이 없습니다."}</p>
+            <div class="project-meta">
+              ${language ? `<span class="badge">${Utils.escapeHtml(language)}</span>` : ""}
+              <span class="badge">⭐ ${stargazers_count}</span>
+            </div>
+            <a href="${Utils.escapeHtml(html_url)}" target="_blank" rel="noopener">GitHub에서 보기</a>
+          </article>
+        `)
+        .join("");
+
+      this.reveal.observe(listEl);
+      return;
+    }
+
+    filtersEl.innerHTML = "";
+    statusEl.innerHTML = "";
+    listEl.innerHTML = "";
+  };
+}
+
+class ContactForm {
+  constructor(app) {
+    this.app = app;
+    this.fieldNames = ["name", "email", "message"];
+    this.form = document.getElementById("contact-form");
+
+    if (typeof emailjs !== "undefined") {
+      emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+    }
+  }
+
+  validateField(field) {
     const value = document.getElementById(field).value.trim();
     if (!value) return "필수 입력 항목입니다.";
     if (field === "email" && !EMAIL_REGEX.test(value)) return "올바른 이메일 형식이 아닙니다.";
     return "";
-  };
+  }
 
-  const validateAndSetField = (field) => {
-    const message = validateField(field);
-    setState({ formErrors: { ...STATE.formErrors, [field]: message } });
+  validateAndSetField = (field) => {
+    const message = this.validateField(field);
+    this.app.setState({ formErrors: { ...this.app.state.formErrors, [field]: message } });
     return message === "";
   };
 
-  const makeFieldInputHandler = (field) => () => validateAndSetField(field);
+  renderErrors = () => {
+    Object.entries(this.app.state.formErrors).forEach(([field, message]) => {
+      document.getElementById(`${field}-error`).textContent = message;
+      document.getElementById(field).classList.toggle("invalid", Boolean(message));
+    });
+  };
 
-  const handleFormSubmit = (event) => {
+  renderStatus = () => {
+    const submitBtn = document.getElementById("contact-submit");
+    const statusEl = document.getElementById("form-status");
+
+    submitBtn.disabled = this.app.state.formStatus === "sending";
+    submitBtn.textContent = this.app.state.formStatus === "sending" ? "전송 중..." : "보내기";
+
+    statusEl.textContent = this.app.state.formMessage;
+    statusEl.className =
+      this.app.state.formStatus === "error"
+        ? "error-message"
+        : this.app.state.formStatus === "success"
+          ? "success-message"
+          : "";
+  };
+
+  handleFieldInput = (field) => () => this.validateAndSetField(field);
+
+  handleSubmit = (event) => {
     event.preventDefault();
 
-    const isValid = fieldNames.map((field) => validateAndSetField(field)).every(Boolean);
+    const isValid = this.fieldNames.map((field) => this.validateAndSetField(field)).every(Boolean);
 
     if (!isValid) {
-      setState({ formStatus: "idle", formMessage: "" });
+      this.app.setState({ formStatus: "idle", formMessage: "" });
       return;
     }
 
     if (typeof emailjs === "undefined") {
-      setState({ formStatus: "error", formMessage: "메일 전송 기능을 사용할 수 없습니다." });
+      this.app.setState({ formStatus: "error", formMessage: "메일 전송 기능을 사용할 수 없습니다." });
       return;
     }
 
-    setState({ formStatus: "sending", formMessage: "" });
+    this.app.setState({ formStatus: "sending", formMessage: "" });
 
     emailjs
-      .sendForm(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, form)
+      .sendForm(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, this.form)
       .then(() => {
-        setState({
+        this.app.setState({
           formStatus: "success",
           formMessage: "문의가 성공적으로 접수되었습니다. 감사합니다!",
         });
-        form.reset();
+        this.form.reset();
       })
       .catch((error) => {
         console.error(error);
-        setState({
+        this.app.setState({
           formStatus: "error",
           formMessage: "메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.",
         });
       });
   };
 
-  fieldNames.forEach((field) => {
-    document.getElementById(field).addEventListener("input", makeFieldInputHandler(field));
-  });
-
-  form.addEventListener("submit", handleFormSubmit);
-};
-
-// 7. 초기화 · 이벤트 핸들러
-const getInitialTheme = () => {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "dark" || saved === "light") {
-    return saved;
+  init() {
+    this.fieldNames.forEach((field) => {
+      document.getElementById(field).addEventListener("input", this.handleFieldInput(field));
+    });
+    this.form.addEventListener("submit", this.handleSubmit);
   }
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-  return prefersDark ? "dark" : "light";
-};
+}
 
-const handleSystemThemeChange = (event) => {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "dark" || saved === "light") {
-    return;
+// 3. PortfolioApp — 중앙 상태 저장소 + 초기화 진입점
+// 기존의 전역 STATE/setState/RENDERERS를 인스턴스 필드로만 옮긴 것으로,
+// "단일 상태 객체 → setState → 매핑된 render만 실행"이라는 흐름 자체는 그대로다.
+class PortfolioApp {
+  constructor() {
+    this.state = {
+      theme: "light",
+      navOpen: false,
+      scrolled: false,
+      showScrollTop: false,
+      projects: {
+        status: "idle",
+        items: [],
+        username: "",
+        message: "",
+        filter: "all",
+      },
+      formErrors: { name: "", email: "", message: "" },
+      formStatus: "idle",
+      formMessage: "",
+    };
+
+    this.reveal = new RevealAnimator();
+    this.typewriter = new TypeWriter();
+
+    this.theme = new ThemeController(this);
+    this.nav = new NavMenu(this);
+    this.scrollWatcher = new ScrollWatcher(this);
+    this.projects = new ProjectsSection(this, this.reveal);
+    this.contactForm = new ContactForm(this);
+
+    // 상태 키 → 그 키를 화면에 반영하는 render 메서드. 여러 키가 같은 메서드를
+    // 가리켜도(formStatus/formMessage), setState 쪽에서 Set으로 중복 실행을 막는다.
+    this.renderers = {
+      theme: this.theme.render,
+      navOpen: this.nav.render,
+      scrolled: this.scrollWatcher.renderHeader,
+      showScrollTop: this.scrollWatcher.renderScrollTopButton,
+      projects: this.projects.render,
+      formErrors: this.contactForm.renderErrors,
+      formStatus: this.contactForm.renderStatus,
+      formMessage: this.contactForm.renderStatus,
+    };
   }
-  setState({ theme: event.matches ? "dark" : "light" });
-};
 
-const handleThemeToggleClick = () => {
-  const next = STATE.theme === "dark" ? "light" : "dark";
-  localStorage.setItem(THEME_KEY, next);
-  setState({ theme: next });
-};
-
-const handleHamburgerClick = () => {
-  setState({ navOpen: !STATE.navOpen });
-};
-
-const handleNavLinkClick = (event) => {
-  event.preventDefault();
-  const target = document.querySelector(event.currentTarget.getAttribute("href"));
-  target?.scrollIntoView({ behavior: "smooth" });
-  setState({ navOpen: false });
-};
-
-const handleScroll = () => {
-  const scrolled = window.scrollY > NAV_SCROLL_THRESHOLD;
-  const showScrollTop = window.scrollY > SCROLL_TOP_THRESHOLD;
-
-  if (scrolled !== STATE.scrolled || showScrollTop !== STATE.showScrollTop) {
-    setState({ scrolled, showScrollTop });
-  }
-};
-
-const handleScrollTopClick = () => {
-  window.scrollTo({ top: 0, behavior: "smooth" });
-};
-
-const handleKeydown = (event) => {
-  if (event.key === "Escape" && STATE.navOpen) {
-    setState({ navOpen: false });
-    document.getElementById("hamburger").focus();
-  }
-};
-
-document.addEventListener("DOMContentLoaded", async () => {
-  setState({ theme: getInitialTheme() });
-  document.getElementById("theme-toggle").addEventListener("click", handleThemeToggleClick);
-
-  const darkSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
-  if (darkSchemeQuery) {
-    if (darkSchemeQuery.addEventListener) {
-      darkSchemeQuery.addEventListener("change", handleSystemThemeChange);
-    } else if (darkSchemeQuery.addListener) {
-      darkSchemeQuery.addListener(handleSystemThemeChange);
+  setState = (patch) => {
+    if (DEBUG) {
+      console.log("[setState]", patch);
     }
+    Object.assign(this.state, patch);
+
+    const renderersToRun = new Set(
+      Object.keys(patch)
+        .map((key) => this.renderers[key])
+        .filter(Boolean)
+    );
+    renderersToRun.forEach((renderFn) => renderFn());
+  };
+
+  async init() {
+    this.theme.init();
+    this.nav.init();
+    this.scrollWatcher.init();
+
+    const res = await fetch("data/info.json");
+    const data = await res.json();
+    const { hero, about, skills, footer, github } = data;
+
+    this.typewriter.type(document.getElementById("hero-greeting"), hero.greeting);
+    const cta = document.getElementById("hero-cta");
+    cta.textContent = hero.ctaText;
+    cta.href = hero.ctaLink;
+
+    const aboutImg = document.getElementById("about-img");
+    aboutImg.src = about.image;
+    aboutImg.alt = about.imageAlt;
+    document.getElementById("about-text").textContent = about.text;
+
+    const skillsList = document.getElementById("skills-list");
+    skills.forEach((skill) => {
+      const li = document.createElement("li");
+      li.textContent = skill;
+      skillsList.appendChild(li);
+    });
+
+    document.getElementById("footer-copyright").textContent = footer.copyright;
+    const socialList = document.getElementById("footer-social");
+    footer.social.forEach(({ name, url }) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = url;
+      a.textContent = name;
+      li.appendChild(a);
+      socialList.appendChild(li);
+    });
+
+    // Hero/About/Skills/Footer 콘텐츠가 전부 채워져 섹션 높이가 확정된 뒤에
+    // 관찰을 시작해야 IntersectionObserver가 "텅 빈 상태" 높이를 기준으로
+    // 20% 교차 여부를 잘못 판단하지 않는다.
+    this.reveal.observe();
+
+    this.projects.load(github.username);
+    this.contactForm.init();
   }
+}
 
-  document.getElementById("hamburger").addEventListener("click", handleHamburgerClick);
-  document.addEventListener("keydown", handleKeydown);
-
-  document.querySelectorAll(".nav-link").forEach((link) => {
-    link.addEventListener("click", handleNavLinkClick);
-  });
-
-  window.addEventListener("scroll", handleScroll);
-  document.getElementById("scroll-top").addEventListener("click", handleScrollTopClick);
-
-  const res = await fetch("data/info.json");
-  const data = await res.json();
-
-  const { hero, about, skills, footer, github } = data;
-
-  typeText(document.getElementById("hero-greeting"), hero.greeting);
-  const cta = document.getElementById("hero-cta");
-  cta.textContent = hero.ctaText;
-  cta.href = hero.ctaLink;
-
-  const aboutImg = document.getElementById("about-img");
-  aboutImg.src = about.image;
-  aboutImg.alt = about.imageAlt;
-  document.getElementById("about-text").textContent = about.text;
-
-  const skillsList = document.getElementById("skills-list");
-  skills.forEach((skill) => {
-    const li = document.createElement("li");
-    li.textContent = skill;
-    skillsList.appendChild(li);
-  });
-
-  document.getElementById("footer-copyright").textContent = footer.copyright;
-  const socialList = document.getElementById("footer-social");
-  footer.social.forEach(({ name, url }) => {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = url;
-    a.textContent = name;
-    li.appendChild(a);
-    socialList.appendChild(li);
-  });
-
-  // Hero/About/Skills/Footer 콘텐츠가 전부 채워져 섹션들의 높이가 최종 확정된
-  // 뒤에 관찰을 시작해야, IntersectionObserver가 "아직 텅 빈 상태"의 높이를
-  // 기준으로 20% 교차 여부를 잘못 판단하지 않는다 (Projects 섹션은 카드가
-  // GitHub API 응답 이후에 따로 채워지므로 그 부분까지 기다리진 않지만,
-  // 최소한 텅 빈 <h2>만 있는 상태보다는 안정적이다).
-  observeReveal();
-
-  loadProjects(github.username);
-  initContactForm();
+// 4. 부트스트랩
+document.addEventListener("DOMContentLoaded", () => {
+  const app = new PortfolioApp();
+  app.init();
 });

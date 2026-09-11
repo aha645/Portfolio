@@ -30,6 +30,8 @@
   --radius: 12px;
   --transition: 0.3s ease;
   --transition-slow: 0.6s ease;
+
+  --header-height: 80px;
 }
 
 /* 2. 다크 테마 토큰 */
@@ -178,6 +180,8 @@ section {
   padding: var(--space-lg);
   max-width: 1100px;
   margin: 0 auto;
+  /* sticky 헤더가 앵커 이동 시 섹션 상단을 가리지 않도록 스크롤 정지 위치를 헤더 높이만큼 미리 확보 */
+  scroll-margin-top: var(--header-height);
 }
 
 /* 9. Hero */

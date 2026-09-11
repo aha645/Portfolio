@@ -66,16 +66,20 @@ class TypeWriter {
 
 // 스크롤 등장 애니메이션. 관찰자(IntersectionObserver) 하나를 인스턴스가 들고 있다가
 // observe(scope)로 원하는 범위의 .reveal 요소들을 등록한다.
+//const threshold = 0.2;
+//{ threshold }        // 이렇게 줄여 써도
+//{ threshold: threshold }   // 사실 이것과 완전히 동일함
+//ES6부터 생긴 프로퍼티 단축(shorthand) 문법
 class RevealAnimator {
   constructor(threshold = REVEAL_THRESHOLD) {
     this.observer = new IntersectionObserver(this._handleIntersect, { threshold });
   }
 
-  _handleIntersect = (entries) => {
+  _handleIntersect(entries,observer){
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
         entry.target.classList.add("visible");
-        this.observer.unobserve(entry.target);
+        observer.unobserve(entry.target);
       }
     });
   };
@@ -533,7 +537,6 @@ class PortfolioApp {
     const renderersToRun = new Set(
       Object.keys(patch)
         .map((key) => this.renderers[key])
-        .filter(Boolean)
     );
     renderersToRun.forEach((renderFn) => renderFn());
   }

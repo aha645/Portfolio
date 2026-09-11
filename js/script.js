@@ -19,7 +19,8 @@ const EMAILJS_PUBLIC_KEY = "n1fS48XnUB9-n_G3l";
 const EMAILJS_SERVICE_ID = "service_g48smoo";
 const EMAILJS_TEMPLATE_ID = "template_rvdgv14";
 
-const DEBUG = false;
+// let로 선언해 콘솔에서 DEBUG = true; 처럼 실행 중에도 값을 바꿀 수 있게 한다.
+let DEBUG = false;
 
 // 1. 유틸리티 클래스 — 특정 기능에 속하지 않는 순수 도우미
 
@@ -531,6 +532,11 @@ class PortfolioApp {
   setState(patch) {
     if (DEBUG) {
       console.log("[setState]", patch);
+      if (!window.app) {
+        window.app = this;
+      }
+    } else if (window.app) {
+      delete window.app;
     }
     Object.assign(this.state, patch);
 

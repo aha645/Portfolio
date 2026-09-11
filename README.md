@@ -40,14 +40,22 @@ HTML/CSS/JavaScript(순수 바닐라)로 제작한 반응형 포트폴리오 사
 | `#skills-list`, `.filters` ([css/style.css:339](css/style.css#L339)) | Flexbox + wrap | 태그처럼 줄바꿈만 필요, 줄 간 정렬 불필요 |
 | `#projects-list` ([css/style.css:366](css/style.css#L366)) | Grid | 카드가 여러 줄이어도 열 너비가 항상 같아야 함 (`auto-fit`, `minmax`) |
 
+## 구조 설명서
+
+각 코드를 **왜 그렇게 작성했는지**는 별도 문서로 정리했습니다 — 색상 토큰 설계,
+Flexbox/Grid 선택 기준, 명시도 원칙, 기능별 동작 흐름, `id`/`class` ↔ CSS ↔ JS 대응표.
+
+📄 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+
 ## 폴더 구조
 
 ```
 Portfolio/
-├── index.html        # 메인 페이지 (시맨틱 마크업)
+├── index.html         # 메인 페이지 (시맨틱 마크업)
 ├── css/style.css      # 전체 스타일시트
 ├── js/script.js       # 인터랙션 / 상태 관리 / API 연동
 ├── data/info.json     # Hero·About·Skills·Footer 콘텐츠 데이터
+├── docs/ARCHITECTURE.md  # 구조 설명서 (설계 의도 · 동작 흐름)
 ├── images/            # 프로필 사진 등 이미지 리소스
 └── README.md
 ```

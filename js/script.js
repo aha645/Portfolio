@@ -456,8 +456,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("scroll", handleScroll);
   document.getElementById("scroll-top").addEventListener("click", handleScrollTopClick);
 
-  observeReveal();
-
   const res = await fetch("data/info.json");
   const data = await res.json();
 
@@ -490,6 +488,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     li.appendChild(a);
     socialList.appendChild(li);
   });
+
+  // Hero/About/Skills/Footer 콘텐츠가 전부 채워져 섹션들의 높이가 최종 확정된
+  // 뒤에 관찰을 시작해야, IntersectionObserver가 "아직 텅 빈 상태"의 높이를
+  // 기준으로 20% 교차 여부를 잘못 판단하지 않는다 (Projects 섹션은 카드가
+  // GitHub API 응답 이후에 따로 채워지므로 그 부분까지 기다리진 않지만,
+  // 최소한 텅 빈 <h2>만 있는 상태보다는 안정적이다).
+  observeReveal();
 
   loadProjects(github.username);
   initContactForm();

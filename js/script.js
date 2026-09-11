@@ -32,6 +32,8 @@ class Utils {
 
 // Hero 타이핑 효과. 재귀 스텝(_typeStep)을 함수 안에 숨은 익명 클로저가 아니라
 // 클래스의 이름 있는 메서드로 분리해서, "함수 안에 함수"처럼 보이지 않게 했다.
+// (el, text, index는 인스턴스 필드가 아니라 매개변수로 주고받으므로, 같은
+// TypeWriter 인스턴스로 여러 타이핑을 동시에 실행해도 서로 간섭하지 않는다.)
 class TypeWriter {
   constructor(speed = TYPING_SPEED_MS) {
     this.speed = speed;
@@ -49,8 +51,10 @@ class TypeWriter {
     this._typeStep(el, text, 0);
   }
 
-  // setTimeout 콜백으로 재귀 호출되므로 화살표 필드로 선언해 this를 고정한다.
-  _typeStep = (el, text, index) => {
+  // setTimeout에는 이 메서드를 통째로 넘기는 게 아니라 () => this._typeStep(...)로
+  // 감싸서 넘긴다 — 즉 항상 this._typeStep(...) 리시버 호출로만 쓰이므로,
+  // 화살표 필드가 아닌 일반 메서드로 선언해도 this가 깨지지 않는다.
+  _typeStep(el, text, index) {
     if (index < text.length) {
       el.textContent += text[index];
       setTimeout(() => this._typeStep(el, text, index + 1), this.speed);
@@ -233,7 +237,9 @@ class ProjectsSection {
     return `프로젝트를 불러올 수 없습니다. (오류 코드: ${status})`;
   }
 
-  load = async (username) => {
+  // 항상 this.load(...) 또는 () => this.load(...) 형태(리시버 있음)로만 호출되므로
+  // 일반 메서드로 선언해도 this가 깨지지 않는다.
+  async load(username) {
     this.app.setState({
       projects: { status: "loading", items: [], username, message: "", filter: "all" },
     });
@@ -274,11 +280,13 @@ class ProjectsSection {
         projects: { status: "error", items: [], username, message, filter: "all" },
       });
     }
-  };
+  }
 
-  handleFilterClick = (language) => {
+  // 항상 () => this.handleFilterClick(...)로 감싸서 호출되므로(300번째 줄)
+  // 일반 메서드로 선언해도 this가 깨지지 않는다.
+  handleFilterClick(language) {
     this.app.setState({ projects: { ...this.app.state.projects, filter: language } });
-  };
+  }
 
   renderFilters(items, activeFilter) {
     const filtersEl = document.getElementById("projects-filters");
@@ -388,11 +396,12 @@ class ContactForm {
     return "";
   }
 
-  validateAndSetField = (field) => {
+  // 항상 this.validateAndSetField(...) 리시버 호출로만 쓰이므로 일반 메서드로 충분하다.
+  validateAndSetField(field) {
     const message = this.validateField(field);
     this.app.setState({ formErrors: { ...this.app.state.formErrors, [field]: message } });
     return message === "";
-  };
+  }
 
   renderErrors = () => {
     Object.entries(this.app.state.formErrors).forEach(([field, message]) => {
@@ -417,7 +426,13 @@ class ContactForm {
           : "";
   };
 
-  handleFieldInput = (field) => () => this.validateAndSetField(field);
+  // 이 메서드 자신은 항상 this.handleFieldInput(field) 리시버 호출로만 쓰이므로
+  // 일반 메서드로 충분하다. 반환하는 내부의 () => this.validateAndSetField(field)만
+  // addEventListener에 리시버 없이 전달되는데, 이 화살표는 호출 시점에 이미 this가
+  // 정상 바인딩된 상태에서 만들어지므로 그 this를 그대로 캡처해 안전하다.
+  handleFieldInput(field) {
+    return () => this.validateAndSetField(field);
+  }
 
   handleSubmit = (event) => {
     event.preventDefault();
@@ -507,7 +522,9 @@ class PortfolioApp {
     };
   }
 
-  setState = (patch) => {
+  // 모든 하위 컨트롤러가 항상 this.app.setState(...) 리시버 호출로만 사용하므로
+  // 일반 메서드로 충분하다 (이벤트 리스너나 렌더러 맵에 값으로 전달된 적이 없음).
+  setState(patch) {
     if (DEBUG) {
       console.log("[setState]", patch);
     }
@@ -519,7 +536,7 @@ class PortfolioApp {
         .filter(Boolean)
     );
     renderersToRun.forEach((renderFn) => renderFn());
-  };
+  }
 
   async init() {
     this.theme.init();
